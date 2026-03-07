@@ -4,6 +4,7 @@ import { program } from "commander";
 import { buildCommand } from "../src/commands/build.js";
 import { initCommand } from "../src/commands/init.js";
 import { keyCommand } from "../src/commands/key/index.js";
+import { packCommand } from "../src/commands/pack.js";
 import { pullCommand } from "../src/commands/pull.js";
 import { repoCommand } from "../src/commands/repo/index.js";
 import { statusCommand } from "../src/commands/status.js";
@@ -18,6 +19,7 @@ program.addCommand(repoCommand);
 program.addCommand(keyCommand);
 program.addCommand(pullCommand);
 program.addCommand(buildCommand);
+program.addCommand(packCommand);
 program.addCommand(statusCommand);
 
 program.parse();

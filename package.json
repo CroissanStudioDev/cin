@@ -30,6 +30,7 @@
     "inquirer": "^9.2.23",
     "ora": "^8.0.1",
     "simple-git": "^3.25.0",
+    "tar": "^7.5.10",
     "yaml": "^2.4.5"
   },
   "devDependencies": {

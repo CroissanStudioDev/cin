@@ -1119,9 +1119,9 @@ cin/
 ### v0.2.0 — 2 недели
 
 - [x] `build` — docker-compose build
-- [ ] `pack` — создание архива с Docker images
-- [ ] Базовый manifest.json
-- [ ] Checksums для файлов
+- [x] `pack` — создание архива с Docker images
+- [x] Базовый manifest.json
+- [x] Checksums для файлов
 - [ ] `secrets setup/import/list/check` — управление секретами
 - [ ] Шифрование секретов (AES-256)
 
