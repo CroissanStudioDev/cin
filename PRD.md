@@ -1112,7 +1112,7 @@ cin/
 - [x] `repo add/list/remove` — управление репозиториями
 - [x] `key add/list/remove` — управление SSH ключами
 - [x] `pull` — клонирование и обновление через simple-git
-- [ ] Поддержка git submodules (recursive init/update)
+- [x] Поддержка git submodules (recursive init/update)
 - [x] Конфигурация в YAML
 - [x] Идемпотентность: `[SKIP]` для уже выполненных операций
 
