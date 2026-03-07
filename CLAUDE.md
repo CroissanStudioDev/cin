@@ -13,21 +13,20 @@ CIN CLI — инструмент для доставки кода в airgapped (
 ```bash
 # Development
 npm install                    # Install dependencies
-npm run dev                    # Run in development mode
+npm run dev                    # Run CLI: node bin/cin.js
 npm link                       # Link globally for local testing
 
 # Linting & Formatting (Ultracite + Biome)
 npm run check                  # Check for issues
 npm run fix                    # Auto-fix issues
-npx ultracite doctor           # Diagnose setup
 
-# Testing
-npm test                       # Run all tests
-npm test -- --watch           # Watch mode
-npm test -- path/to/test.js   # Single test file
-
-# Build & Release
-npm run build                  # Build for production
+# CLI commands (via cin or node bin/cin.js)
+cin init                       # Initialize project config
+cin repo add <url>             # Add repository
+cin repo list                  # List repositories
+cin key add <name> <path>      # Add SSH key
+cin pull                       # Pull updates from repos
+cin status                     # Show project status
 ```
 
 ## Code Style (Ultracite)
@@ -35,50 +34,35 @@ npm run build                  # Build for production
 This project uses **Ultracite** with **Biome** for linting and formatting. Pre-commit hook auto-fixes code via Lefthook.
 
 Key rules:
-- Use `const` by default, `let` only when needed, never `var`
-- Arrow functions for callbacks
-- `for...of` over `.forEach()`
-- Optional chaining (`?.`) and nullish coalescing (`??`)
-- Template literals over concatenation
-- Explicit types for function params/returns
+- Move regex literals to top-level constants (performance)
+- Extract functions to reduce cognitive complexity (max 20)
+- Remove unused variables (or prefix with `_`)
+- Use `const` by default, `let` only when needed
+- Arrow functions for callbacks, `for...of` over `.forEach()`
 - `async/await` over promise chains
-- Remove `console.log` and `debugger` before commit
 
 ## Architecture
 
 ```
+bin/cin.js            # Entry point
 src/
-├── commands/          # CLI commands (Commander.js handlers)
+├── commands/         # CLI commands (Commander.js handlers)
 │   ├── init.js       # cin init
 │   ├── pull.js       # cin pull (git operations)
-│   ├── build.js      # cin build (docker-compose build)
-│   ├── pack.js       # cin pack (create offline package)
-│   ├── deploy.js     # cin deploy (extract + docker load + up)
-│   ├── rollback.js   # cin rollback (restore previous version)
+│   ├── status.js     # cin status
 │   ├── repo/         # cin repo add/list/remove
-│   ├── key/          # cin key add/list/remove
-│   ├── secrets/      # cin secrets setup/import/list/check
-│   ├── logs/         # cin logs / cin logs collect
-│   └── tasks/        # cin tasks list / cin run <task>
-├── lib/              # Core business logic
-│   ├── config.js     # YAML config management (.cin/config.yaml)
-│   ├── git.js        # Git operations via simple-git
-│   ├── docker.js     # Docker/docker-compose operations
-│   ├── packager.js   # Create offline packages (tar + docker save)
-│   ├── deployer.js   # Deploy packages (docker load + compose up)
-│   ├── rollback.js   # Version management & rollback
-│   ├── secrets.js    # Encrypted secrets management (AES-256)
-│   ├── hooks.js      # Lifecycle hooks (pre/post-deploy)
-│   ├── tasks.js      # Configurable tasks execution
-│   ├── logs.js       # Log collection for diagnostics
-│   └── manifest.js   # manifest.json generation
+│   └── key/          # cin key add/list/remove
+├── lib/
+│   └── config.js     # YAML config management (.cin/config.yaml)
 └── utils/
-    ├── checksum.js   # SHA256 verification
-    ├── crypto.js     # Secrets encryption
-    ├── sanitizer.js  # Remove secrets from logs
-    ├── logger.js     # Formatted output (ora, chalk)
-    └── prompts.js    # Interactive prompts (inquirer)
+    └── logger.js     # Formatted output (ora, chalk)
 ```
+
+### Planned (v0.2.0+)
+
+- `build.js`, `pack.js` — docker-compose build, create offline packages
+- `deploy.js`, `rollback.js` — deployment and version management
+- `secrets/`, `logs/`, `tasks/` — secrets, logs, hooks
 
 ## Key Design Principles
 
