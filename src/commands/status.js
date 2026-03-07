@@ -42,6 +42,18 @@ function printProjectStatus() {
   return true;
 }
 
+async function getSubmoduleCount(git) {
+  try {
+    const submoduleStatus = await git.subModule(["status"]);
+    if (!submoduleStatus.trim()) {
+      return 0;
+    }
+    return submoduleStatus.trim().split("\n").length;
+  } catch {
+    return 0;
+  }
+}
+
 async function printRepoStatus(repo, reposDir) {
   const repoPath = join(reposDir, repo.name);
 
@@ -54,10 +66,14 @@ async function printRepoStatus(repo, reposDir) {
     const git = simpleGit(repoPath);
     const status = await git.status();
     const head = await git.revparse(["--short", "HEAD"]);
+    const submoduleCount = await getSubmoduleCount(git);
 
     const statusIcon = status.isClean() ? chalk.green("✓") : chalk.yellow("*");
+    const submoduleInfo =
+      submoduleCount > 0 ? chalk.gray(` [${submoduleCount} submodules]`) : "";
+
     console.log(
-      `  ${statusIcon} ${chalk.yellow(repo.name)} @ ${chalk.cyan(head)}`
+      `  ${statusIcon} ${chalk.yellow(repo.name)} @ ${chalk.cyan(head)}${submoduleInfo}`
     );
 
     if (!status.isClean()) {

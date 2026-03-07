@@ -18,6 +18,12 @@ export const addCommand = new Command("add")
   .option("-k, --key <key>", "SSH key name or path")
   .option("-b, --branch <branch>", "Branch to track", "main")
   .option("-c, --compose <file>", "Docker compose file", "docker-compose.yml")
+  .option("--submodules", "Enable submodules support (default: true)", true)
+  .option("--no-submodules", "Disable submodules support")
+  .option(
+    "--submodules-keys <json>",
+    'SSH keys for submodules: \'{"path":"key-name"}\''
+  )
   .action((url, options) => {
     if (!projectConfigExists()) {
       logger.error("Project not initialized. Run 'cin init' first.");
@@ -36,11 +42,27 @@ export const addCommand = new Command("add")
       }
     }
 
+    // Parse submodules keys if provided
+    let submodulesKeys = {};
+    if (options.submodulesKeys) {
+      try {
+        submodulesKeys = JSON.parse(options.submodulesKeys);
+      } catch {
+        logger.error("Invalid JSON for --submodules-keys");
+        process.exit(1);
+      }
+    }
+
     const repo = {
       name,
       url,
       branch: options.branch,
       ssh_key: options.key || null,
+      submodules: {
+        enabled: options.submodules,
+        recursive: true,
+        keys: submodulesKeys,
+      },
       docker: {
         compose_file: options.compose,
         services: [],
@@ -54,6 +76,9 @@ export const addCommand = new Command("add")
       logger.info(`  URL: ${url}`);
       logger.info(`  Branch: ${options.branch}`);
       logger.info(`  Compose: ${options.compose}`);
+      logger.info(
+        `  Submodules: ${options.submodules ? "enabled" : "disabled"}`
+      );
     } catch (error) {
       logger.error(error.message);
       process.exit(1);
