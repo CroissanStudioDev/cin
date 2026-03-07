@@ -1,5 +1,6 @@
 import chalk from "chalk";
 import inquirer from "inquirer";
+import { t } from "./i18n/index.js";
 import {
   getRepositories,
   globalConfigExists,
@@ -15,7 +16,7 @@ interface MenuChoice {
 
 function getProjectStatus(): string {
   if (!projectConfigExists()) {
-    return chalk.yellow("not initialized");
+    return chalk.yellow(t().menu.notInitialized);
   }
   const config = readProjectConfig();
   return chalk.green(config?.project?.name ?? "unnamed");
@@ -28,103 +29,120 @@ function getRepoCount(): number {
   return getRepositories().length;
 }
 
+// biome-ignore lint/suspicious/noControlCharactersInRegex: ANSI escape codes
+const ANSI_REGEX = /\x1b\[[0-9;]*m/g;
+
+function padRight(str: string, len: number): string {
+  const visibleLength = str.replace(ANSI_REGEX, "").length;
+  return str + " ".repeat(Math.max(0, len - visibleLength));
+}
+
 function printHeader(): void {
+  const i = t().menu;
   console.clear();
   console.log();
   console.log(chalk.bold.cyan("  ╭─────────────────────────────────────╮"));
   console.log(
     chalk.bold.cyan("  │") +
-      chalk.bold("           CIN CLI v0.1.0           ") +
+      chalk.bold(`           ${i.title}           `) +
       chalk.bold.cyan("│")
   );
   console.log(
     chalk.bold.cyan("  │") +
-      chalk.gray("   Airgapped Deployment Tool        ") +
+      chalk.gray(`   ${padRight(i.subtitle, 32)}`) +
       chalk.bold.cyan("│")
   );
   console.log(chalk.bold.cyan("  ╰─────────────────────────────────────╯"));
   console.log();
-  console.log(chalk.gray(`  Project: ${getProjectStatus()}`));
-  console.log(chalk.gray(`  Repos:   ${getRepoCount()}`));
+  console.log(chalk.gray(`  ${i.project}: ${getProjectStatus()}`));
+  console.log(chalk.gray(`  ${i.repos}:   ${getRepoCount()}`));
   console.log();
+}
+
+function formatMenuItem(icon: string, label: string, desc: string): string {
+  return `${icon} ${padRight(label, 16)} ${chalk.gray(desc)}`;
 }
 
 function getMainMenuChoices(): MenuChoice[] {
   const hasProject = projectConfigExists();
   const hasGlobal = globalConfigExists();
   const hasRepos = getRepoCount() > 0;
+  const i = t().menu;
 
   return [
     {
-      name: `${chalk.green("●")} Status           ${chalk.gray("Show project status")}`,
+      name: formatMenuItem(chalk.green("●"), i.status, i.statusDesc),
       value: "status",
-      disabled: !hasProject && "Initialize project first",
+      disabled: !hasProject && i.initFirst,
     },
-    new inquirer.Separator(chalk.gray("─── Setup ───")),
+    new inquirer.Separator(chalk.gray(`─── ${i.sectionSetup} ───`)),
     {
-      name: `${chalk.blue("◆")} Init             ${chalk.gray("Initialize project")}`,
+      name: formatMenuItem(chalk.blue("◆"), i.init, i.initDesc),
       value: "init",
-      disabled: hasProject && "Already initialized",
+      disabled: hasProject && i.alreadyInitialized,
     },
     {
-      name: `${chalk.blue("◆")} Manage repos     ${chalk.gray("Add/remove repositories")}`,
+      name: formatMenuItem(chalk.blue("◆"), i.manageRepos, i.manageReposDesc),
       value: "repo",
-      disabled: !hasProject && "Initialize project first",
+      disabled: !hasProject && i.initFirst,
     },
     {
-      name: `${chalk.blue("◆")} Manage SSH keys  ${chalk.gray("Add/remove SSH keys")}`,
+      name: formatMenuItem(chalk.blue("◆"), i.manageKeys, i.manageKeysDesc),
       value: "key",
-      disabled: !hasGlobal && "Initialize global config first",
+      disabled: !hasGlobal && i.initGlobalFirst,
     },
-    new inquirer.Separator(chalk.gray("─── Workflow ───")),
+    new inquirer.Separator(chalk.gray(`─── ${i.sectionWorkflow} ───`)),
     {
-      name: `${chalk.yellow("▶")} Pull             ${chalk.gray("Fetch code from repos")}`,
+      name: formatMenuItem(chalk.yellow("▶"), i.pull, i.pullDesc),
       value: "pull",
-      disabled: !hasRepos && "Add repositories first",
+      disabled: !hasRepos && i.addReposFirst,
     },
     {
-      name: `${chalk.yellow("▶")} Build            ${chalk.gray("Build Docker images")}`,
+      name: formatMenuItem(chalk.yellow("▶"), i.build, i.buildDesc),
       value: "build",
-      disabled: !hasRepos && "Add repositories first",
+      disabled: !hasRepos && i.addReposFirst,
     },
     {
-      name: `${chalk.yellow("▶")} Pack             ${chalk.gray("Create offline package")}`,
+      name: formatMenuItem(chalk.yellow("▶"), i.pack, i.packDesc),
       value: "pack",
-      disabled: !hasRepos && "Add repositories first",
+      disabled: !hasRepos && i.addReposFirst,
     },
-    new inquirer.Separator(chalk.gray("─── Deploy ───")),
+    new inquirer.Separator(chalk.gray(`─── ${i.sectionDeploy} ───`)),
     {
-      name: `${chalk.magenta("★")} Deploy           ${chalk.gray("Deploy package to target")}`,
+      name: formatMenuItem(chalk.magenta("★"), i.deploy, i.deployDesc),
       value: "deploy",
     },
     {
-      name: `${chalk.magenta("★")} Verify           ${chalk.gray("Verify package integrity")}`,
+      name: formatMenuItem(chalk.magenta("★"), i.verify, i.verifyDesc),
       value: "verify",
     },
     {
-      name: `${chalk.magenta("★")} Rollback         ${chalk.gray("Restore previous version")}`,
+      name: formatMenuItem(chalk.magenta("★"), i.rollback, i.rollbackDesc),
       value: "rollback",
     },
     new inquirer.Separator(),
     {
-      name: `${chalk.red("×")} Exit`,
+      name: `${chalk.red("×")} ${i.exit}`,
       value: "exit",
     },
   ];
 }
 
 async function handleRepoMenu(): Promise<void> {
+  const i = t().repo;
+  const m = t().menu;
+
   const { action } = await inquirer.prompt([
     {
       type: "list",
       name: "action",
-      message: "Repositories:",
+      message: `${i.title}:`,
       choices: [
-        { name: "List repositories", value: "list" },
-        { name: "Add repository", value: "add" },
-        { name: "Remove repository", value: "remove" },
+        { name: i.list, value: "list" },
+        { name: i.add, value: "add" },
+        { name: i.remove, value: "remove" },
         new inquirer.Separator(),
-        { name: "← Back", value: "back" },
+        { name: m.back, value: "back" },
       ],
     },
   ]);
@@ -138,7 +156,7 @@ async function handleRepoMenu(): Promise<void> {
     await listCommand.parseAsync([], { from: "user" });
   } else if (action === "add") {
     const { url } = await inquirer.prompt([
-      { type: "input", name: "url", message: "Repository URL:" },
+      { type: "input", name: "url", message: i.urlPrompt },
     ]);
     if (url) {
       const { addCommand } = await import("./commands/repo/add.js");
@@ -147,14 +165,14 @@ async function handleRepoMenu(): Promise<void> {
   } else if (action === "remove") {
     const repos = getRepositories();
     if (repos.length === 0) {
-      console.log(chalk.yellow("No repositories to remove"));
+      console.log(chalk.yellow(i.noRepos));
       return;
     }
     const { name } = await inquirer.prompt([
       {
         type: "list",
         name: "name",
-        message: "Select repository to remove:",
+        message: i.selectRemove,
         choices: repos.map((r) => r.name),
       },
     ]);
@@ -164,17 +182,20 @@ async function handleRepoMenu(): Promise<void> {
 }
 
 async function handleKeyMenu(): Promise<void> {
+  const i = t().key;
+  const m = t().menu;
+
   const { action } = await inquirer.prompt([
     {
       type: "list",
       name: "action",
-      message: "SSH Keys:",
+      message: `${i.title}:`,
       choices: [
-        { name: "List keys", value: "list" },
-        { name: "Add key", value: "add" },
-        { name: "Remove key", value: "remove" },
+        { name: i.list, value: "list" },
+        { name: i.add, value: "add" },
+        { name: i.remove, value: "remove" },
         new inquirer.Separator(),
-        { name: "← Back", value: "back" },
+        { name: m.back, value: "back" },
       ],
     },
   ]);
@@ -188,8 +209,8 @@ async function handleKeyMenu(): Promise<void> {
     await listCommand.parseAsync([], { from: "user" });
   } else if (action === "add") {
     const answers = await inquirer.prompt([
-      { type: "input", name: "name", message: "Key name:" },
-      { type: "input", name: "path", message: "Path to key file:" },
+      { type: "input", name: "name", message: i.namePrompt },
+      { type: "input", name: "path", message: i.pathPrompt },
     ]);
     if (answers.name && answers.path) {
       const { addCommand } = await import("./commands/key/add.js");
@@ -202,14 +223,14 @@ async function handleKeyMenu(): Promise<void> {
     const keys = getSshKeys();
     const keyNames = Object.keys(keys);
     if (keyNames.length === 0) {
-      console.log(chalk.yellow("No keys to remove"));
+      console.log(chalk.yellow(i.noKeys));
       return;
     }
     const { name } = await inquirer.prompt([
       {
         type: "list",
         name: "name",
-        message: "Select key to remove:",
+        message: i.selectRemove,
         choices: keyNames,
       },
     ]);
@@ -219,11 +240,13 @@ async function handleKeyMenu(): Promise<void> {
 }
 
 async function handleDeploy(): Promise<void> {
+  const i = t().deploy;
+
   const { packagePath } = await inquirer.prompt([
     {
       type: "input",
       name: "packagePath",
-      message: "Path to package (.tar.gz):",
+      message: i.packagePrompt,
     },
   ]);
 
@@ -235,7 +258,7 @@ async function handleDeploy(): Promise<void> {
     {
       type: "input",
       name: "target",
-      message: "Target directory:",
+      message: i.targetPrompt,
       default: "/opt/app",
     },
   ]);
@@ -245,11 +268,13 @@ async function handleDeploy(): Promise<void> {
 }
 
 async function handleVerify(): Promise<void> {
+  const i = t().verify;
+
   const { packagePath } = await inquirer.prompt([
     {
       type: "input",
       name: "packagePath",
-      message: "Path to package (.tar.gz):",
+      message: i.packagePrompt,
     },
   ]);
 
@@ -262,17 +287,20 @@ async function handleVerify(): Promise<void> {
 }
 
 async function handleRollback(): Promise<void> {
+  const i = t().rollback;
+  const m = t().menu;
+
   const { action } = await inquirer.prompt([
     {
       type: "list",
       name: "action",
-      message: "Rollback:",
+      message: `${i.title}:`,
       choices: [
-        { name: "List versions", value: "list" },
-        { name: "Rollback to previous", value: "rollback" },
-        { name: "Rollback to specific version", value: "specific" },
+        { name: i.listVersions, value: "list" },
+        { name: i.rollbackPrevious, value: "rollback" },
+        { name: i.rollbackSpecific, value: "specific" },
         new inquirer.Separator(),
-        { name: "← Back", value: "back" },
+        { name: m.back, value: "back" },
       ],
     },
   ]);
@@ -289,7 +317,7 @@ async function handleRollback(): Promise<void> {
     await rollbackCommand.parseAsync([], { from: "user" });
   } else if (action === "specific") {
     const { version } = await inquirer.prompt([
-      { type: "input", name: "version", message: "Version name:" },
+      { type: "input", name: "version", message: i.versionPrompt },
     ]);
     if (version) {
       await rollbackCommand.parseAsync(["--to", version], { from: "user" });
@@ -298,6 +326,9 @@ async function handleRollback(): Promise<void> {
 }
 
 export async function runInteractiveMenu(): Promise<void> {
+  const m = t().menu;
+  const e = t().errors;
+
   while (true) {
     printHeader();
 
@@ -305,14 +336,14 @@ export async function runInteractiveMenu(): Promise<void> {
       {
         type: "list",
         name: "action",
-        message: "What would you like to do?",
+        message: m.whatToDo,
         choices: getMainMenuChoices(),
         pageSize: 15,
       },
     ]);
 
     if (action === "exit") {
-      console.log(chalk.gray("\n  Goodbye!\n"));
+      console.log(chalk.gray(`\n  ${m.goodbye}\n`));
       break;
     }
 
@@ -364,7 +395,7 @@ export async function runInteractiveMenu(): Promise<void> {
           break;
       }
     } catch (error) {
-      console.error(chalk.red(`Error: ${(error as Error).message}`));
+      console.error(chalk.red(`${e.error}: ${(error as Error).message}`));
     }
 
     // Pause before returning to menu
@@ -372,7 +403,7 @@ export async function runInteractiveMenu(): Promise<void> {
       {
         type: "input",
         name: "continue",
-        message: chalk.gray("Press Enter to continue..."),
+        message: chalk.gray(m.pressEnter),
       },
     ]);
   }
