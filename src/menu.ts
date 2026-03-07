@@ -92,6 +92,15 @@ function getMainMenuChoices(): (MenuChoice | inquirer.Separator)[] {
       value: "key",
       disabled: !hasGlobal && i.initGlobalFirst,
     },
+    {
+      name: formatMenuItem(
+        chalk.blue("◆"),
+        i.manageSecrets,
+        i.manageSecretsDesc
+      ),
+      value: "secrets",
+      disabled: !hasProject && i.initFirst,
+    },
     new inquirer.Separator(chalk.gray(`─── ${i.sectionWorkflow} ───`)),
     {
       name: formatMenuItem(chalk.yellow("▶"), i.pull, i.pullDesc),
@@ -120,6 +129,14 @@ function getMainMenuChoices(): (MenuChoice | inquirer.Separator)[] {
     {
       name: formatMenuItem(chalk.magenta("★"), i.rollback, i.rollbackDesc),
       value: "rollback",
+    },
+    {
+      name: formatMenuItem(chalk.magenta("★"), i.logs, i.logsDesc),
+      value: "logs",
+    },
+    {
+      name: formatMenuItem(chalk.magenta("★"), i.tasks, i.tasksDesc),
+      value: "tasks",
     },
     new inquirer.Separator(chalk.gray(`─── ${i.sectionSettings} ───`)),
     {
@@ -245,6 +262,54 @@ async function handleKeyMenu(): Promise<void> {
   }
 }
 
+async function handleSecretsMenu(): Promise<void> {
+  const i = t().secrets;
+  const m = t().menu;
+
+  const { action } = await inquirer.prompt([
+    {
+      type: "list",
+      name: "action",
+      message: `${i.title}:`,
+      choices: [
+        { name: i.setup, value: "setup" },
+        { name: i.list, value: "list" },
+        { name: i.check, value: "check" },
+        { name: i.import, value: "import" },
+        { name: i.export, value: "export" },
+        new inquirer.Separator(),
+        { name: m.back, value: "back" },
+      ],
+    },
+  ]);
+
+  if (action === "back") {
+    return;
+  }
+
+  if (action === "setup") {
+    const { setupCommand } = await import("./commands/secrets/setup.js");
+    await setupCommand.parseAsync([], { from: "user" });
+  } else if (action === "list") {
+    const { listCommand } = await import("./commands/secrets/list.js");
+    await listCommand.parseAsync(["--show"], { from: "user" });
+  } else if (action === "check") {
+    const { checkCommand } = await import("./commands/secrets/check.js");
+    await checkCommand.parseAsync([], { from: "user" });
+  } else if (action === "import") {
+    const { file } = await inquirer.prompt([
+      { type: "input", name: "file", message: i.filePrompt },
+    ]);
+    if (file) {
+      const { importCommand } = await import("./commands/secrets/import.js");
+      await importCommand.parseAsync([file, "--merge"], { from: "user" });
+    }
+  } else if (action === "export") {
+    const { exportCommand } = await import("./commands/secrets/export.js");
+    await exportCommand.parseAsync([], { from: "user" });
+  }
+}
+
 async function handleDeploy(): Promise<void> {
   const i = t().deploy;
 
@@ -331,6 +396,114 @@ async function handleRollback(): Promise<void> {
   }
 }
 
+async function handleLogsMenu(): Promise<void> {
+  const i = t().logs;
+  const m = t().menu;
+
+  const { action } = await inquirer.prompt([
+    {
+      type: "list",
+      name: "action",
+      message: `${i.title}:`,
+      choices: [
+        { name: i.viewLive, value: "live" },
+        { name: i.collect, value: "collect" },
+        new inquirer.Separator(),
+        { name: m.back, value: "back" },
+      ],
+    },
+  ]);
+
+  if (action === "back") {
+    return;
+  }
+
+  if (action === "live") {
+    const { target } = await inquirer.prompt([
+      {
+        type: "input",
+        name: "target",
+        message: i.targetPrompt,
+        default: "/opt/app",
+      },
+    ]);
+    const { logsCommand } = await import("./commands/logs/index.js");
+    await logsCommand.parseAsync(["-f", "-t", target], { from: "user" });
+  } else if (action === "collect") {
+    const answers = await inquirer.prompt([
+      {
+        type: "input",
+        name: "days",
+        message: i.daysPrompt,
+        default: "7",
+      },
+      {
+        type: "input",
+        name: "target",
+        message: i.targetPrompt,
+        default: "/opt/app",
+      },
+    ]);
+    const { collectCommand } = await import("./commands/logs/collect.js");
+    await collectCommand.parseAsync(
+      ["-d", answers.days, "-t", answers.target],
+      { from: "user" }
+    );
+  }
+}
+
+async function handleTasksMenu(): Promise<void> {
+  const i = t().tasks;
+  const m = t().menu;
+
+  const { getTasks } = await import("./lib/hooks.js");
+  const tasks = getTasks();
+  const taskNames = Object.keys(tasks);
+
+  if (taskNames.length === 0) {
+    console.log(chalk.yellow(i.noTasks));
+    return;
+  }
+
+  const { action } = await inquirer.prompt([
+    {
+      type: "list",
+      name: "action",
+      message: `${i.title}:`,
+      choices: [
+        { name: i.list, value: "list" },
+        { name: i.run, value: "run" },
+        new inquirer.Separator(),
+        { name: m.back, value: "back" },
+      ],
+    },
+  ]);
+
+  if (action === "back") {
+    return;
+  }
+
+  if (action === "list") {
+    const { listCommand } = await import("./commands/tasks/list.js");
+    await listCommand.parseAsync([], { from: "user" });
+  } else if (action === "run") {
+    const { taskName } = await inquirer.prompt([
+      {
+        type: "list",
+        name: "taskName",
+        message: i.taskPrompt,
+        choices: taskNames.map((name) => ({
+          name: `${name} - ${tasks[name].description || ""}`,
+          value: name,
+        })),
+      },
+    ]);
+
+    const { runCommand } = await import("./commands/run.js");
+    await runCommand.parseAsync([taskName], { from: "user" });
+  }
+}
+
 async function handleLanguage(): Promise<void> {
   const m = t().menu;
   const currentLang = getLocale();
@@ -401,6 +574,9 @@ export async function runInteractiveMenu(): Promise<void> {
         case "key":
           await handleKeyMenu();
           break;
+        case "secrets":
+          await handleSecretsMenu();
+          break;
         case "pull": {
           const { pullCommand } = await import("./commands/pull.js");
           await pullCommand.parseAsync([], { from: "user" });
@@ -424,6 +600,12 @@ export async function runInteractiveMenu(): Promise<void> {
           break;
         case "rollback":
           await handleRollback();
+          break;
+        case "logs":
+          await handleLogsMenu();
+          break;
+        case "tasks":
+          await handleTasksMenu();
           break;
         case "language":
           await handleLanguage();

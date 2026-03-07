@@ -10,6 +10,11 @@ import { join } from "node:path";
 import chalk from "chalk";
 import { Command } from "commander";
 import { extract as extractTar } from "tar";
+import {
+  getSignatureFilePath,
+  getSigningKeyPaths,
+  verifyPackage as verifyPackageSignature,
+} from "../lib/signing.js";
 import { checksumFile } from "../utils/checksum.js";
 import { logger, spinner } from "../utils/logger.js";
 
@@ -48,20 +53,101 @@ interface Manifest {
 
 interface VerifyOptions {
   checksums?: boolean;
+  key?: string;
+  signature?: boolean;
 }
 
 export const verifyCommand = new Command("verify")
-  .description("Verify package integrity")
+  .description("Verify package integrity and signature")
   .argument("<package>", "Path to package file (.tar.gz)")
   .option("--checksums", "Show all checksums")
+  .option("-k, --key <path>", "Path to public key for signature verification")
+  .option(
+    "-s, --signature",
+    "Verify signature only (skip checksum verification)"
+  )
   .action(async (packagePath: string, options: VerifyOptions) => {
     if (!existsSync(packagePath)) {
       logger.error(`Package not found: ${packagePath}`);
       process.exit(1);
     }
 
-    await verifyPackage(packagePath, options);
+    // Signature verification
+    const sigPath = getSignatureFilePath(packagePath);
+    const hasSignature = existsSync(sigPath);
+
+    if (options.key || hasSignature) {
+      verifySignature(packagePath, options.key, hasSignature);
+
+      if (options.signature) {
+        return; // Only verify signature
+      }
+    } else if (options.signature) {
+      logger.error("No signature file found (.sig)");
+      logger.info("Sign the package with: cin sign <package>");
+      process.exit(1);
+    }
+
+    // Content verification
+    if (!options.signature) {
+      await verifyPackageContent(packagePath, options);
+    }
   });
+
+function verifySignature(
+  packagePath: string,
+  publicKeyPath: string | undefined,
+  hasSignature: boolean
+): void {
+  console.log(chalk.bold("\n=== Signature Verification ===\n"));
+
+  if (!hasSignature) {
+    console.log(chalk.yellow("  ⚠ No signature file found"));
+    console.log(chalk.gray("    Package is not signed"));
+    console.log();
+    return;
+  }
+
+  // Find public key
+  let keyPath = publicKeyPath;
+  if (!keyPath) {
+    const { publicKeyPath: defaultPath } = getSigningKeyPaths();
+    if (existsSync(defaultPath)) {
+      keyPath = defaultPath;
+    } else {
+      console.log(
+        chalk.yellow("  ⚠ Signature found but no public key provided")
+      );
+      console.log(chalk.gray("    Use --key <path> to verify signature"));
+      console.log();
+      return;
+    }
+  }
+
+  if (!existsSync(keyPath)) {
+    logger.error(`Public key not found: ${keyPath}`);
+    process.exit(1);
+  }
+
+  const result = verifyPackageSignature(packagePath, keyPath);
+
+  if (result.valid) {
+    console.log(chalk.green("  ✓ Signature is valid"));
+    if (result.signatureInfo) {
+      console.log(`    Algorithm: ${result.signatureInfo.algorithm}`);
+      console.log(`    Key ID:    ${result.signatureInfo.keyId}`);
+      console.log(
+        `    Signed at: ${chalk.gray(result.signatureInfo.signedAt)}`
+      );
+    }
+  } else {
+    console.log(chalk.red("  ✗ Signature verification failed"));
+    console.log(`    ${result.error}`);
+    process.exit(1);
+  }
+
+  console.log();
+}
 
 function displayPackageInfo(manifest: Manifest): void {
   console.log(chalk.bold("\n=== Package Info ===\n"));
@@ -171,7 +257,7 @@ function displaySummary(valid: number, invalid: number, missing: number): void {
   console.log();
 }
 
-async function verifyPackage(
+async function verifyPackageContent(
   packagePath: string,
   options: VerifyOptions
 ): Promise<void> {

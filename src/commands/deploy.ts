@@ -12,6 +12,7 @@ import {
 import { join, resolve } from "node:path";
 import { Command } from "commander";
 import { extract as extractTar } from "tar";
+import { runHooks } from "../lib/hooks.js";
 import { checksumFile } from "../utils/checksum.js";
 import { formatPath, formatVersion, logger, spinner } from "../utils/logger.js";
 
@@ -135,6 +136,15 @@ async function deployPackage(
     createBackup(targetDir, currentState);
   }
 
+  // Run pre-deploy hooks
+  const currentDir = join(targetDir, "current");
+  const preDeploySuccess = await runHooks("pre-deploy", { cwd: currentDir });
+  if (!preDeploySuccess) {
+    logger.error("Pre-deploy hooks failed, aborting deployment");
+    rmSync(tempDir, { recursive: true });
+    process.exit(1);
+  }
+
   // Load Docker images
   const imagesPath = join(packageDir, "docker", "images.tar");
   if (existsSync(imagesPath)) {
@@ -158,13 +168,16 @@ async function deployPackage(
     await startServices(targetDir);
   }
 
+  // Run post-deploy hooks
+  const deployedDir = join(targetDir, "current");
+  await runHooks("post-deploy", { cwd: deployedDir });
+
   // Cleanup temp
   rmSync(tempDir, { recursive: true });
 
   logger.success(`Deployment complete: ${formatVersion(packageName)}`);
 
-  const currentDir = join(targetDir, "current");
-  logger.info(`  Location: ${formatPath(currentDir)}`);
+  logger.info(`  Location: ${formatPath(deployedDir)}`);
 
   if (!options.start) {
     logger.info("  Services not started (--no-start)");

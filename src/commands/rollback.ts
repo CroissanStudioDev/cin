@@ -11,6 +11,7 @@ import {
 import { join, resolve } from "node:path";
 import chalk from "chalk";
 import { Command } from "commander";
+import { runHooks } from "../lib/hooks.js";
 import { formatVersion, logger, spinner } from "../utils/logger.js";
 
 interface RollbackOptions {
@@ -189,6 +190,17 @@ async function performRollback(
 
   logger.info(`Rolling back to: ${formatVersion(targetVersion.name)}`);
 
+  // Run pre-rollback hooks
+  if (existsSync(currentDir)) {
+    const preRollbackSuccess = await runHooks("pre-rollback", {
+      cwd: currentDir,
+    });
+    if (!preRollbackSuccess) {
+      logger.error("Pre-rollback hooks failed, aborting");
+      process.exit(1);
+    }
+  }
+
   // Stop current services
   if (existsSync(currentDir)) {
     await stopServices(currentDir);
@@ -210,6 +222,9 @@ async function performRollback(
   if (options.start) {
     await startServices(currentDir);
   }
+
+  // Run post-rollback hooks
+  await runHooks("post-rollback", { cwd: currentDir });
 
   logger.success(`Rollback complete: ${formatVersion(targetVersion.name)}`);
 

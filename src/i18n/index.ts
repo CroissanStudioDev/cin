@@ -20,6 +20,13 @@ export interface Translations {
     selectRemove: string;
     noKeys: string;
   };
+  logs: {
+    title: string;
+    viewLive: string;
+    collect: string;
+    daysPrompt: string;
+    targetPrompt: string;
+  };
   menu: {
     title: string;
     subtitle: string;
@@ -40,6 +47,8 @@ export interface Translations {
     manageReposDesc: string;
     manageKeys: string;
     manageKeysDesc: string;
+    manageSecrets: string;
+    manageSecretsDesc: string;
     pull: string;
     pullDesc: string;
     build: string;
@@ -52,6 +61,10 @@ export interface Translations {
     verifyDesc: string;
     rollback: string;
     rollbackDesc: string;
+    logs: string;
+    logsDesc: string;
+    tasks: string;
+    tasksDesc: string;
     // Sections
     sectionSetup: string;
     sectionWorkflow: string;
@@ -84,6 +97,23 @@ export interface Translations {
     rollbackSpecific: string;
     versionPrompt: string;
   };
+  secrets: {
+    title: string;
+    setup: string;
+    import: string;
+    list: string;
+    check: string;
+    export: string;
+    filePrompt: string;
+    noSecrets: string;
+  };
+  tasks: {
+    title: string;
+    list: string;
+    run: string;
+    taskPrompt: string;
+    noTasks: string;
+  };
   verify: {
     packagePrompt: string;
   };
@@ -109,6 +139,8 @@ const en: Translations = {
     manageReposDesc: "Add/remove repositories",
     manageKeys: "Manage SSH keys",
     manageKeysDesc: "Add/remove SSH keys",
+    manageSecrets: "Manage secrets",
+    manageSecretsDesc: "Configure app secrets",
     pull: "Pull",
     pullDesc: "Fetch code from repos",
     build: "Build",
@@ -121,6 +153,10 @@ const en: Translations = {
     verifyDesc: "Verify package integrity",
     rollback: "Rollback",
     rollbackDesc: "Restore previous version",
+    logs: "Logs",
+    logsDesc: "View or collect logs",
+    tasks: "Tasks",
+    tasksDesc: "Run configured tasks",
     sectionSetup: "Setup",
     sectionWorkflow: "Workflow",
     sectionDeploy: "Deploy",
@@ -152,6 +188,30 @@ const en: Translations = {
     pathPrompt: "Path to key file:",
     selectRemove: "Select key to remove:",
     noKeys: "No keys to remove",
+  },
+  secrets: {
+    title: "Secrets",
+    setup: "Interactive setup",
+    import: "Import from file",
+    list: "List secrets",
+    check: "Check required",
+    export: "Export to file",
+    filePrompt: "Path to secrets file:",
+    noSecrets: "No secrets configured",
+  },
+  logs: {
+    title: "Logs",
+    viewLive: "View live logs",
+    collect: "Collect for diagnostics",
+    daysPrompt: "Days to collect:",
+    targetPrompt: "Target directory:",
+  },
+  tasks: {
+    title: "Tasks",
+    list: "List tasks",
+    run: "Run task",
+    taskPrompt: "Task name:",
+    noTasks: "No tasks configured",
   },
   deploy: {
     packagePrompt: "Path to package (.tar.gz):",
@@ -192,6 +252,8 @@ const ru: Translations = {
     manageReposDesc: "Добавить/удалить репозитории",
     manageKeys: "SSH ключи",
     manageKeysDesc: "Добавить/удалить SSH ключи",
+    manageSecrets: "Секреты",
+    manageSecretsDesc: "Настроить секреты приложения",
     pull: "Получить",
     pullDesc: "Получить код из репозиториев",
     build: "Собрать",
@@ -204,6 +266,10 @@ const ru: Translations = {
     verifyDesc: "Проверить целостность пакета",
     rollback: "Откатить",
     rollbackDesc: "Восстановить предыдущую версию",
+    logs: "Логи",
+    logsDesc: "Просмотр и сбор логов",
+    tasks: "Задачи",
+    tasksDesc: "Запуск настроенных задач",
     sectionSetup: "Настройка",
     sectionWorkflow: "Рабочий процесс",
     sectionDeploy: "Развёртывание",
@@ -235,6 +301,30 @@ const ru: Translations = {
     pathPrompt: "Путь к файлу ключа:",
     selectRemove: "Выберите ключ для удаления:",
     noKeys: "Нет ключей для удаления",
+  },
+  secrets: {
+    title: "Секреты",
+    setup: "Настройка",
+    import: "Импорт из файла",
+    list: "Список секретов",
+    check: "Проверить",
+    export: "Экспорт в файл",
+    filePrompt: "Путь к файлу секретов:",
+    noSecrets: "Секреты не настроены",
+  },
+  logs: {
+    title: "Логи",
+    viewLive: "Просмотр в реальном времени",
+    collect: "Собрать для диагностики",
+    daysPrompt: "За сколько дней:",
+    targetPrompt: "Целевая директория:",
+  },
+  tasks: {
+    title: "Задачи",
+    list: "Список задач",
+    run: "Запустить задачу",
+    taskPrompt: "Имя задачи:",
+    noTasks: "Задачи не настроены",
   },
   deploy: {
     packagePrompt: "Путь к пакету (.tar.gz):",

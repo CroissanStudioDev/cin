@@ -1,12 +1,29 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { parse, stringify } from "yaml";
 
 const GLOBAL_CONFIG_DIR = join(homedir(), ".cin");
 const GLOBAL_CONFIG_FILE = join(GLOBAL_CONFIG_DIR, "config.yaml");
 const PROJECT_CONFIG_DIR = ".cin";
 const PROJECT_CONFIG_FILE = join(PROJECT_CONFIG_DIR, "config.yaml");
+
+// Custom config path set via --config option
+let customConfigPath: string | null = null;
+
+/**
+ * Set custom project config path (used by --config CLI option)
+ */
+export function setConfigPath(path: string): void {
+  customConfigPath = resolve(path);
+}
+
+/**
+ * Get current working directory for config operations
+ */
+export function getConfigCwd(): string {
+  return customConfigPath ?? process.cwd();
+}
 
 export interface SshKeys {
   [name: string]: string;
@@ -105,15 +122,15 @@ export function getGlobalConfigPath(): string {
   return GLOBAL_CONFIG_FILE;
 }
 
-export function getProjectConfigPath(cwd = process.cwd()): string {
-  return join(cwd, PROJECT_CONFIG_FILE);
+export function getProjectConfigPath(cwd?: string): string {
+  return join(cwd ?? getConfigCwd(), PROJECT_CONFIG_FILE);
 }
 
 export function globalConfigExists(): boolean {
   return existsSync(GLOBAL_CONFIG_FILE);
 }
 
-export function projectConfigExists(cwd = process.cwd()): boolean {
+export function projectConfigExists(cwd?: string): boolean {
   return existsSync(getProjectConfigPath(cwd));
 }
 
@@ -123,7 +140,7 @@ export function readGlobalConfig(): GlobalConfig {
   );
 }
 
-export function readProjectConfig(cwd = process.cwd()): ProjectConfig | null {
+export function readProjectConfig(cwd?: string): ProjectConfig | null {
   return readYaml<ProjectConfig>(getProjectConfigPath(cwd));
 }
 
@@ -131,10 +148,7 @@ export function writeGlobalConfig(config: GlobalConfig): void {
   writeYaml(GLOBAL_CONFIG_FILE, config);
 }
 
-export function writeProjectConfig(
-  config: ProjectConfig,
-  cwd = process.cwd()
-): void {
+export function writeProjectConfig(config: ProjectConfig, cwd?: string): void {
   writeYaml(getProjectConfigPath(cwd), config);
 }
 
@@ -148,17 +162,14 @@ export function initGlobalConfig(
 
 export function initProjectConfig(
   overrides: Partial<ProjectConfig> = {},
-  cwd = process.cwd()
+  cwd?: string
 ): ProjectConfig {
   const config = { ...DEFAULT_PROJECT_CONFIG, ...overrides };
   writeProjectConfig(config, cwd);
   return config;
 }
 
-export function addRepository(
-  repo: Repository,
-  cwd = process.cwd()
-): ProjectConfig {
+export function addRepository(repo: Repository, cwd?: string): ProjectConfig {
   const config = readProjectConfig(cwd);
   if (!config) {
     throw new Error("Project not initialized. Run 'cin init' first.");
@@ -174,10 +185,7 @@ export function addRepository(
   return config;
 }
 
-export function removeRepository(
-  name: string,
-  cwd = process.cwd()
-): ProjectConfig {
+export function removeRepository(name: string, cwd?: string): ProjectConfig {
   const config = readProjectConfig(cwd);
   if (!config) {
     throw new Error("Project not initialized. Run 'cin init' first.");
@@ -193,7 +201,7 @@ export function removeRepository(
   return config;
 }
 
-export function getRepositories(cwd = process.cwd()): Repository[] {
+export function getRepositories(cwd?: string): Repository[] {
   const config = readProjectConfig(cwd);
   return config?.repositories ?? [];
 }
@@ -220,14 +228,15 @@ export function getSshKeys(): SshKeys {
   return config.ssh_keys ?? {};
 }
 
-export function getProjectKeysDir(cwd = process.cwd()): string {
-  return join(cwd, ".cin", "keys");
+export function getProjectKeysDir(cwd?: string): string {
+  return join(cwd ?? getConfigCwd(), ".cin", "keys");
 }
 
 export function resolveSshKey(
   keyNameOrPath: string,
-  cwd = process.cwd()
+  cwd?: string
 ): string | null {
+  const effectiveCwd = cwd ?? getConfigCwd();
   // 1. Absolute path
   if (keyNameOrPath.startsWith("/") && existsSync(keyNameOrPath)) {
     return keyNameOrPath;
@@ -242,13 +251,13 @@ export function resolveSshKey(
   }
 
   // 3. Relative path (to project directory)
-  const relativePath = join(cwd, keyNameOrPath);
+  const relativePath = join(effectiveCwd, keyNameOrPath);
   if (existsSync(relativePath)) {
     return relativePath;
   }
 
   // 4. Check .cin/keys/ directory
-  const projectKeyPath = join(getProjectKeysDir(cwd), keyNameOrPath);
+  const projectKeyPath = join(getProjectKeysDir(effectiveCwd), keyNameOrPath);
   if (existsSync(projectKeyPath)) {
     return projectKeyPath;
   }
@@ -268,9 +277,9 @@ export function resolveSshKey(
 export function copyKeyToProject(
   sourcePath: string,
   keyName: string,
-  cwd = process.cwd()
+  cwd?: string
 ): string {
-  const keysDir = getProjectKeysDir(cwd);
+  const keysDir = getProjectKeysDir(cwd ?? getConfigCwd());
   mkdirSync(keysDir, { recursive: true });
 
   const destPath = join(keysDir, keyName);

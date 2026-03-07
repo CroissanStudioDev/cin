@@ -21,6 +21,11 @@ import {
   type Repository,
   readProjectConfig,
 } from "../lib/config.js";
+import {
+  getSigningKeyPaths,
+  signingKeysExist,
+  signPackage,
+} from "../lib/signing.js";
 import { checksumFile } from "../utils/checksum.js";
 import { formatRepo, logger, spinner } from "../utils/logger.js";
 
@@ -29,8 +34,10 @@ const SUBMODULE_STATUS_PATTERN = /^[\s-+]?([a-f0-9]+)\s+(\S+)/;
 
 interface PackOptions {
   images: boolean;
+  key?: string;
   name?: string;
   output: string;
+  sign?: boolean;
   sources: boolean;
 }
 
@@ -92,6 +99,8 @@ export const packCommand = new Command("pack")
   .option("-n, --name <name>", "Package name (default: from project config)")
   .option("--no-sources", "Exclude git bundles (images only)")
   .option("--no-images", "Exclude Docker images (sources only)")
+  .option("-s, --sign", "Sign the package after creation")
+  .option("-k, --key <path>", "Path to private key for signing")
   .action(async (options: PackOptions) => {
     if (!projectConfigExists()) {
       logger.error("Project not initialized. Run 'cin init' first.");
@@ -217,12 +226,47 @@ async function createPackage(
     const archiveChecksum = await checksumFile(archivePath);
     const shortHash = archiveChecksum.replace("sha256:", "").substring(0, 16);
     logger.info(`  SHA256: ${shortHash}...`);
+
+    // Sign package if requested
+    if (options.sign) {
+      signCreatedPackage(archivePath, options.key);
+    }
   } catch (error) {
     spin.fail(`Failed to create archive: ${(error as Error).message}`);
     process.exit(1);
   } finally {
     // Cleanup staging directory
     rmSync(stagingDir, { recursive: true });
+  }
+}
+
+function signCreatedPackage(archivePath: string, keyPath?: string): void {
+  let privateKeyPath = keyPath;
+
+  if (!privateKeyPath) {
+    const { privateKeyPath: defaultPath } = getSigningKeyPaths();
+    if (!signingKeysExist()) {
+      logger.warn("No signing key found, skipping signature");
+      logger.info("Generate keys with: cin key generate");
+      return;
+    }
+    privateKeyPath = defaultPath;
+  }
+
+  if (!existsSync(privateKeyPath)) {
+    logger.warn(`Signing key not found: ${privateKeyPath}`);
+    return;
+  }
+
+  const spin = spinner("Signing package...").start();
+
+  try {
+    const signatureInfo = signPackage(archivePath, privateKeyPath);
+    spin.succeed("Package signed");
+    logger.info(`  Key ID: ${signatureInfo.keyId}`);
+    logger.info(`  Signature: ${archivePath}.sig`);
+  } catch (error) {
+    spin.fail(`Failed to sign package: ${(error as Error).message}`);
   }
 }
 
