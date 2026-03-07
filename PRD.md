@@ -1118,7 +1118,7 @@ cin/
 
 ### v0.2.0 — 2 недели
 
-- [ ] `build` — docker-compose build
+- [x] `build` — docker-compose build
 - [ ] `pack` — создание архива с Docker images
 - [ ] Базовый manifest.json
 - [ ] Checksums для файлов
