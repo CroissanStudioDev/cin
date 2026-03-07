@@ -178,8 +178,22 @@
 
 **Acceptance Criteria:**
 - `cin pull` обновляет все репозитории из GitHub студии
+- Автоматическое обновление git submodules (`--recurse-submodules`)
 - Вывод changelog (новые коммиты)
 - Сохранение версий в манифест
+
+#### US-3.1: Поддержка Git Submodules
+
+> Как инженер заказчика, я хочу получать репозитории с submodules, чтобы все зависимости кода были включены.
+
+**Acceptance Criteria:**
+- `cin pull` автоматически инициализирует и обновляет submodules
+- Поддержка вложенных submodules (recursive)
+- Submodules могут использовать отдельные SSH ключи (если доступ к разным репо)
+- `cin repo add --submodules` включает обработку submodules (по умолчанию: true)
+- `cin repo add --submodules-keys <mapping>` задаёт SSH ключи для submodules
+- `cin pack` включает все submodules в git bundle
+- `cin status` показывает состояние submodules
 
 #### US-4: Сборка Docker images
 
@@ -318,6 +332,9 @@ cin repo add <url> [options]          # Добавить репозиторий 
   --key <path|name>                        # SSH deploy key (путь или имя из конфига)
   --branch <branch>                        # Ветка (default: main)
   --compose <file>                         # docker-compose файл
+  --submodules                             # Включить обработку submodules (default: true)
+  --no-submodules                          # Отключить submodules
+  --submodules-keys <json>                 # SSH ключи для submodules: '{"lib":"key-name"}'
 
 cin repo remove <name>                # Удалить репозиторий
 cin repo list                         # Список репозиториев
@@ -331,6 +348,7 @@ cin key list                          # Список ключей
 cin pull [options]                    # Получить обновления от студии
   --repo <name>                            # Конкретный репозиторий
   --all                                    # Все репозитории (default)
+  --no-submodules                          # Не обновлять submodules
 
 cin build [options]                   # Собрать Docker images
   --repo <name>                            # Конкретный репозиторий
@@ -577,6 +595,12 @@ repositories:
     url: "git@github.com:studio/backend.git"
     branch: main
     ssh_key: studio-main           # Ключ из глобального конфига
+    submodules:
+      enabled: true                # Обрабатывать submodules (default: true)
+      recursive: true              # Включая вложенные submodules
+      keys:                        # SSH ключи для submodules (если отличаются)
+        shared-lib: studio-libs    # submodule path → key name
+        vendor/sdk: studio-sdk
     docker:
       compose_file: "docker-compose.yml"
       services:
@@ -590,6 +614,8 @@ repositories:
     url: "git@github.com:studio/frontend.git"
     branch: main
     ssh_key: studio-main
+    submodules:
+      enabled: true
     docker:
       compose_file: "docker-compose.prod.yml"
       services:
@@ -728,7 +754,10 @@ studio-product-2026.03.07-v1.2.3.tar.gz
 └── studio-product-2026.03.07-v1.2.3/
     ├── manifest.json              # Метаданные пакета
     ├── sources/                   # Git bundles
-    │   ├── backend.bundle
+    │   ├── backend.bundle         # Основной репозиторий
+    │   ├── backend/               # Submodules репозитория backend
+    │   │   ├── shared-lib.bundle
+    │   │   └── vendor-sdk.bundle
     │   └── frontend.bundle
     ├── docker/
     │   ├── images.tar             # Все Docker images
@@ -761,14 +790,27 @@ studio-product-2026.03.07-v1.2.3.tar.gz
       "url": "git@github.com:studio/backend.git",
       "branch": "main",
       "commit": "abc1234567890",
-      "commit_date": "2026-03-07T12:00:00Z"
+      "commit_date": "2026-03-07T12:00:00Z",
+      "submodules": [
+        {
+          "path": "shared-lib",
+          "url": "git@github.com:studio/shared-lib.git",
+          "commit": "111222333444"
+        },
+        {
+          "path": "vendor/sdk",
+          "url": "git@github.com:studio/sdk.git",
+          "commit": "555666777888"
+        }
+      ]
     },
     {
       "name": "frontend",
       "url": "git@github.com:studio/frontend.git",
       "branch": "main",
       "commit": "def5678901234",
-      "commit_date": "2026-03-06T18:00:00Z"
+      "commit_date": "2026-03-06T18:00:00Z",
+      "submodules": []
     }
   ],
   "docker": {
@@ -1065,13 +1107,14 @@ cin/
 
 ### MVP (v0.1.0) — 2 недели
 
-- [ ] Базовая структура CLI с Commander.js
-- [ ] `init` — создание конфигурации
-- [ ] `repo add/list/remove` — управление репозиториями
-- [ ] `key add/list/remove` — управление SSH ключами
-- [ ] `pull` — клонирование и обновление через simple-git
-- [ ] Конфигурация в YAML
-- [ ] Идемпотентность: `[SKIP]` для уже выполненных операций
+- [x] Базовая структура CLI с Commander.js
+- [x] `init` — создание конфигурации
+- [x] `repo add/list/remove` — управление репозиториями
+- [x] `key add/list/remove` — управление SSH ключами
+- [x] `pull` — клонирование и обновление через simple-git
+- [ ] Поддержка git submodules (recursive init/update)
+- [x] Конфигурация в YAML
+- [x] Идемпотентность: `[SKIP]` для уже выполненных операций
 
 ### v0.2.0 — 2 недели
 
@@ -1114,6 +1157,7 @@ cin/
 | Конфликты портов при deploy | Средняя | Средний | Конфигурируемые порты в compose |
 | Повреждение данных при переносе | Низкая | Критический | Checksums, верификация перед deploy |
 | SSH ключи с passphrase | Средняя | Низкий | Поддержка ssh-agent |
+| Submodules с разными ключами доступа | Средняя | Средний | Маппинг SSH ключей для каждого submodule в конфиге |
 
 ---
 
@@ -1158,6 +1202,7 @@ cin/
 | **Закрытый контур** | Изолированная сеть заказчика без доступа к интернету |
 | **Deploy key** | SSH ключ с read-only доступом к репозиторию, выдаётся студией заказчику |
 | **Git bundle** | Файл, содержащий полную историю git репозитория |
+| **Git submodule** | Вложенный git репозиторий внутри основного, используется для подключения зависимостей |
 | **Manifest** | JSON файл с метаданными пакета |
 | **Vendor** | Студия-поставщик ПО |
 | **Rollback** | Откат к предыдущей версии при неудачном обновлении |
