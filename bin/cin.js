@@ -8,6 +8,7 @@ import { keyCommand } from "../src/commands/key/index.js";
 import { packCommand } from "../src/commands/pack.js";
 import { pullCommand } from "../src/commands/pull.js";
 import { repoCommand } from "../src/commands/repo/index.js";
+import { rollbackCommand } from "../src/commands/rollback.js";
 import { statusCommand } from "../src/commands/status.js";
 import { verifyCommand } from "../src/commands/verify.js";
 
@@ -24,6 +25,7 @@ program.addCommand(buildCommand);
 program.addCommand(packCommand);
 program.addCommand(deployCommand);
 program.addCommand(verifyCommand);
+program.addCommand(rollbackCommand);
 program.addCommand(statusCommand);
 
 program.parse();
