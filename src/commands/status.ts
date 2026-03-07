@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import chalk from "chalk";
 import { Command } from "commander";
-import simpleGit from "simple-git";
+import { type SimpleGit, simpleGit } from "simple-git";
 import {
   getGlobalConfigPath,
   getProjectConfigPath,
@@ -10,10 +10,11 @@ import {
   getSshKeys,
   globalConfigExists,
   projectConfigExists,
+  type Repository,
   readProjectConfig,
 } from "../lib/config.js";
 
-function printGlobalStatus() {
+function printGlobalStatus(): void {
   console.log(chalk.bold("Global Config:"));
   if (globalConfigExists()) {
     console.log(chalk.green(`  ✓ ${getGlobalConfigPath()}`));
@@ -26,7 +27,7 @@ function printGlobalStatus() {
   console.log();
 }
 
-function printProjectStatus() {
+function printProjectStatus(): boolean {
   console.log(chalk.bold("Project Config:"));
   if (!projectConfigExists()) {
     console.log(chalk.yellow("  ✗ Not initialized"));
@@ -36,13 +37,13 @@ function printProjectStatus() {
 
   console.log(chalk.green(`  ✓ ${getProjectConfigPath()}`));
   const config = readProjectConfig();
-  console.log(chalk.gray(`    Project: ${config.project?.name || "unnamed"}`));
-  console.log(chalk.gray(`    Vendor: ${config.vendor?.name || "not set"}`));
+  console.log(chalk.gray(`    Project: ${config?.project?.name ?? "unnamed"}`));
+  console.log(chalk.gray(`    Vendor: ${config?.vendor?.name ?? "not set"}`));
   console.log();
   return true;
 }
 
-async function getSubmoduleCount(git) {
+async function getSubmoduleCount(git: SimpleGit): Promise<number> {
   try {
     const submoduleStatus = await git.subModule(["status"]);
     if (!submoduleStatus.trim()) {
@@ -54,7 +55,10 @@ async function getSubmoduleCount(git) {
   }
 }
 
-async function printRepoStatus(repo, reposDir) {
+async function printRepoStatus(
+  repo: Repository,
+  reposDir: string
+): Promise<void> {
   const repoPath = join(reposDir, repo.name);
 
   if (!existsSync(repoPath)) {

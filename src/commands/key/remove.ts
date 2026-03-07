@@ -6,7 +6,7 @@ export const removeCommand = new Command("remove")
   .alias("rm")
   .description("Remove an SSH key")
   .argument("<name>", "Key name")
-  .action((name) => {
+  .action((name: string) => {
     if (!globalConfigExists()) {
       logger.error("Global config not found. Run 'cin init --global' first.");
       process.exit(1);
@@ -16,7 +16,7 @@ export const removeCommand = new Command("remove")
       removeSshKey(name);
       logger.success(`Removed SSH key '${name}'`);
     } catch (error) {
-      logger.error(error.message);
+      logger.error((error as Error).message);
       process.exit(1);
     }
   });

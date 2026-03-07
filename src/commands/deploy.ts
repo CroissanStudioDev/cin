@@ -22,6 +22,34 @@ const DEFAULT_ROLLBACK_CONFIG = {
   auto_cleanup: true,
 };
 
+interface DeployOptions {
+  backup: boolean;
+  start: boolean;
+  target: string;
+  verify: boolean;
+}
+
+interface Manifest {
+  checksums?: Record<string, string>;
+  package?: {
+    name?: string;
+    created?: string;
+  };
+}
+
+interface DeployState {
+  current_version: string;
+  deployed_at: string;
+  manifest?: Manifest;
+  rolled_back_from?: string;
+}
+
+interface RollbackConfig {
+  auto_cleanup: boolean;
+  backup_volumes: boolean;
+  max_versions: number;
+}
+
 export const deployCommand = new Command("deploy")
   .description("Deploy offline package to target directory")
   .argument("<package>", "Path to package file (.tar.gz)")
@@ -29,7 +57,7 @@ export const deployCommand = new Command("deploy")
   .option("--no-start", "Do not start services after deployment")
   .option("--no-backup", "Do not create backup of current version")
   .option("--no-verify", "Skip checksum verification")
-  .action(async (packagePath, options) => {
+  .action(async (packagePath: string, options: DeployOptions) => {
     if (!existsSync(packagePath)) {
       logger.error(`Package not found: ${packagePath}`);
       process.exit(1);
@@ -38,10 +66,10 @@ export const deployCommand = new Command("deploy")
     await deployPackage(packagePath, options);
   });
 
-/**
- * Deploy the package
- */
-async function deployPackage(packagePath, options) {
+async function deployPackage(
+  packagePath: string,
+  options: DeployOptions
+): Promise<void> {
   const targetDir = resolve(options.target);
 
   // Extract to temp directory first
@@ -54,7 +82,7 @@ async function deployPackage(packagePath, options) {
     await extractTar({ file: packagePath, cwd: tempDir });
     spin.succeed("Package extracted");
   } catch (error) {
-    spin.fail(`Failed to extract package: ${error.message}`);
+    spin.fail(`Failed to extract package: ${(error as Error).message}`);
     process.exit(1);
   }
 
@@ -75,11 +103,11 @@ async function deployPackage(packagePath, options) {
     process.exit(1);
   }
 
-  const manifest = JSON.parse(readFileSync(manifestPath, "utf-8"));
-  const packageName = manifest.package?.name || "unknown";
+  const manifest: Manifest = JSON.parse(readFileSync(manifestPath, "utf-8"));
+  const packageName = manifest.package?.name ?? "unknown";
 
   logger.info(`Package: ${packageName}`);
-  logger.info(`Created: ${manifest.package?.created || "unknown"}`);
+  logger.info(`Created: ${manifest.package?.created ?? "unknown"}`);
 
   // Verify checksums
   if (options.verify) {
@@ -92,7 +120,7 @@ async function deployPackage(packagePath, options) {
 
   // Check if already deployed
   const stateFile = join(targetDir, ".cin", "state.json");
-  const currentState = existsSync(stateFile)
+  const currentState: DeployState | null = existsSync(stateFile)
     ? JSON.parse(readFileSync(stateFile, "utf-8"))
     : null;
 
@@ -104,7 +132,7 @@ async function deployPackage(packagePath, options) {
 
   // Create backup if needed
   if (options.backup && currentState) {
-    await createBackup(targetDir, currentState);
+    createBackup(targetDir, currentState);
   }
 
   // Load Docker images
@@ -144,13 +172,13 @@ async function deployPackage(packagePath, options) {
   }
 }
 
-/**
- * Verify package checksums
- */
-async function verifyChecksums(packageDir, manifest) {
+async function verifyChecksums(
+  packageDir: string,
+  manifest: Manifest
+): Promise<boolean> {
   const spin = spinner("Verifying checksums...").start();
 
-  const checksums = manifest.checksums || {};
+  const checksums = manifest.checksums ?? {};
   let valid = true;
   let checked = 0;
 
@@ -178,10 +206,7 @@ async function verifyChecksums(packageDir, manifest) {
   return valid;
 }
 
-/**
- * Create backup of current version
- */
-function createBackup(targetDir, currentState) {
+function createBackup(targetDir: string, currentState: DeployState): void {
   const spin = spinner("Creating backup...").start();
 
   const currentDir = join(targetDir, "current");
@@ -190,7 +215,7 @@ function createBackup(targetDir, currentState) {
     return;
   }
 
-  const versionName = currentState.current_version || "unknown";
+  const versionName = currentState.current_version ?? "unknown";
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
   const backupName = `${versionName}_${timestamp}`;
   const versionsDir = join(targetDir, "versions");
@@ -212,10 +237,7 @@ function createBackup(targetDir, currentState) {
   spin.succeed(`Backup created: ${backupName}`);
 }
 
-/**
- * Load Docker images
- */
-async function loadDockerImages(imagesPath) {
+async function loadDockerImages(imagesPath: string): Promise<void> {
   const spin = spinner("Loading Docker images...").start();
 
   try {
@@ -225,15 +247,15 @@ async function loadDockerImages(imagesPath) {
     await runCommand("docker", ["load", "-i", imagesPath]);
     spin.succeed("Docker images loaded");
   } catch (error) {
-    spin.fail(`Failed to load images: ${error.message}`);
+    spin.fail(`Failed to load images: ${(error as Error).message}`);
     throw error;
   }
 }
 
-/**
- * Deploy files to target directory
- */
-async function deployToTarget(packageDir, targetDir) {
+async function deployToTarget(
+  packageDir: string,
+  targetDir: string
+): Promise<void> {
   const spin = spinner("Deploying...").start();
 
   const currentDir = join(targetDir, "current");
@@ -272,15 +294,12 @@ async function deployToTarget(packageDir, targetDir) {
   spin.succeed("Files deployed");
 }
 
-/**
- * Update deployment state
- */
-function updateState(targetDir, manifest) {
+function updateState(targetDir: string, manifest: Manifest): void {
   const cinDir = join(targetDir, ".cin");
   mkdirSync(cinDir, { recursive: true });
 
-  const state = {
-    current_version: manifest.package?.name || "unknown",
+  const state: DeployState = {
+    current_version: manifest.package?.name ?? "unknown",
     deployed_at: new Date().toISOString(),
     manifest,
   };
@@ -288,10 +307,7 @@ function updateState(targetDir, manifest) {
   writeFileSync(join(cinDir, "state.json"), JSON.stringify(state, null, 2));
 }
 
-/**
- * Load rollback configuration
- */
-function loadRollbackConfig(targetDir) {
+function loadRollbackConfig(targetDir: string): RollbackConfig {
   const configPath = join(targetDir, ".cin", "rollback.yaml");
 
   if (!existsSync(configPath)) {
@@ -299,6 +315,7 @@ function loadRollbackConfig(targetDir) {
   }
 
   try {
+    // Dynamic import for yaml since it's optional here
     const { parse } = require("yaml");
     const content = readFileSync(configPath, "utf-8");
     return { ...DEFAULT_ROLLBACK_CONFIG, ...parse(content) };
@@ -307,10 +324,7 @@ function loadRollbackConfig(targetDir) {
   }
 }
 
-/**
- * Cleanup old versions
- */
-function cleanupOldVersions(targetDir, maxVersions) {
+function cleanupOldVersions(targetDir: string, maxVersions: number): void {
   const versionsDir = join(targetDir, "versions");
 
   if (!existsSync(versionsDir)) {
@@ -337,10 +351,7 @@ function cleanupOldVersions(targetDir, maxVersions) {
   }
 }
 
-/**
- * Start services
- */
-async function startServices(targetDir) {
+async function startServices(targetDir: string): Promise<void> {
   const spin = spinner("Starting services...").start();
 
   const currentDir = join(targetDir, "current");
@@ -359,20 +370,23 @@ async function startServices(targetDir) {
     const output = await runCommand(
       "docker",
       ["compose", "ps", "--format", "table"],
-      {
-        cwd: currentDir,
-      }
+      { cwd: currentDir }
     );
     console.log(`\n${output}`);
   } catch (error) {
-    spin.fail(`Failed to start services: ${error.message}`);
+    spin.fail(`Failed to start services: ${(error as Error).message}`);
   }
 }
 
-/**
- * Run a command
- */
-function runCommand(cmd, args, options = {}) {
+interface RunOptions {
+  cwd?: string;
+}
+
+function runCommand(
+  cmd: string,
+  args: string[],
+  options: RunOptions = {}
+): Promise<string> {
   return new Promise((resolve, reject) => {
     const proc = spawn(cmd, args, {
       stdio: ["ignore", "pipe", "pipe"],
@@ -382,10 +396,10 @@ function runCommand(cmd, args, options = {}) {
     let stdout = "";
     let stderr = "";
 
-    proc.stdout.on("data", (data) => {
+    proc.stdout.on("data", (data: Buffer) => {
       stdout += data.toString();
     });
-    proc.stderr.on("data", (data) => {
+    proc.stderr.on("data", (data: Buffer) => {
       stderr += data.toString();
     });
 
@@ -403,10 +417,7 @@ function runCommand(cmd, args, options = {}) {
   });
 }
 
-/**
- * Format file size
- */
-function formatSize(bytes) {
+function formatSize(bytes: number): string {
   const units = ["B", "KB", "MB", "GB"];
   let size = bytes;
   let unitIndex = 0;

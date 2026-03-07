@@ -13,11 +13,48 @@ import { extract as extractTar } from "tar";
 import { checksumFile } from "../utils/checksum.js";
 import { logger, spinner } from "../utils/logger.js";
 
+interface DockerImage {
+  name: string;
+  size: number;
+}
+
+interface RepoInfo {
+  branch?: string;
+  commit?: string;
+  name: string;
+  submodules?: Array<{ path: string; commit: string }>;
+}
+
+interface Manifest {
+  checksums?: Record<string, string>;
+  docker?: {
+    images?: DockerImage[];
+    total_size?: number;
+  };
+  package?: {
+    name?: string;
+    created?: string;
+    created_by?: string;
+  };
+  project?: {
+    name?: string;
+    type?: string;
+  };
+  repositories?: RepoInfo[];
+  vendor?: {
+    name?: string;
+  };
+}
+
+interface VerifyOptions {
+  checksums?: boolean;
+}
+
 export const verifyCommand = new Command("verify")
   .description("Verify package integrity")
   .argument("<package>", "Path to package file (.tar.gz)")
   .option("--checksums", "Show all checksums")
-  .action(async (packagePath, options) => {
+  .action(async (packagePath: string, options: VerifyOptions) => {
     if (!existsSync(packagePath)) {
       logger.error(`Package not found: ${packagePath}`);
       process.exit(1);
@@ -26,18 +63,15 @@ export const verifyCommand = new Command("verify")
     await verifyPackage(packagePath, options);
   });
 
-/**
- * Display package info from manifest
- */
-function displayPackageInfo(manifest) {
+function displayPackageInfo(manifest: Manifest): void {
   console.log(chalk.bold("\n=== Package Info ===\n"));
-  console.log(`  Name:    ${chalk.cyan(manifest.package?.name || "unknown")}`);
-  console.log(`  Created: ${manifest.package?.created || "unknown"}`);
-  console.log(`  By:      ${manifest.package?.created_by || "unknown"}`);
+  console.log(`  Name:    ${chalk.cyan(manifest.package?.name ?? "unknown")}`);
+  console.log(`  Created: ${manifest.package?.created ?? "unknown"}`);
+  console.log(`  By:      ${manifest.package?.created_by ?? "unknown"}`);
 
   if (manifest.project) {
-    console.log(`\n  Project: ${manifest.project.name || "unnamed"}`);
-    console.log(`  Type:    ${manifest.project.type || "unknown"}`);
+    console.log(`\n  Project: ${manifest.project.name ?? "unnamed"}`);
+    console.log(`  Type:    ${manifest.project.type ?? "unknown"}`);
   }
 
   if (manifest.vendor?.name) {
@@ -45,46 +79,47 @@ function displayPackageInfo(manifest) {
   }
 }
 
-/**
- * Display repositories from manifest
- */
-function displayRepositories(manifest) {
+function displayRepositories(manifest: Manifest): void {
   if (!manifest.repositories?.length) {
     return;
   }
 
   console.log(chalk.bold("\n=== Repositories ===\n"));
   for (const repo of manifest.repositories) {
-    const commitShort = repo.commit?.substring(0, 12) || "unknown";
+    const commitShort = repo.commit?.substring(0, 12) ?? "unknown";
     console.log(`  ${chalk.yellow(repo.name)}`);
-    console.log(`    Branch: ${repo.branch}`);
+    console.log(`    Branch: ${repo.branch ?? "unknown"}`);
     console.log(`    Commit: ${chalk.gray(commitShort)}`);
-    if (repo.submodules?.length > 0) {
+    if (repo.submodules && repo.submodules.length > 0) {
       console.log(`    Submodules: ${repo.submodules.length}`);
     }
   }
 }
 
-/**
- * Display Docker images from manifest
- */
-function displayDockerImages(manifest) {
+function displayDockerImages(manifest: Manifest): void {
   if (!manifest.docker?.images?.length) {
     return;
   }
 
   console.log(chalk.bold("\n=== Docker Images ===\n"));
   for (const image of manifest.docker.images) {
-    const size = formatSize(image.size || 0);
+    const size = formatSize(image.size ?? 0);
     console.log(`  ${chalk.cyan(image.name)} (${size})`);
   }
-  console.log(`\n  Total: ${formatSize(manifest.docker.total_size || 0)}`);
+  console.log(`\n  Total: ${formatSize(manifest.docker.total_size ?? 0)}`);
 }
 
-/**
- * Verify checksums and return counts
- */
-async function verifyAllChecksums(packageDir, checksums, showAll) {
+interface ChecksumResult {
+  invalid: number;
+  missing: number;
+  valid: number;
+}
+
+async function verifyAllChecksums(
+  packageDir: string,
+  checksums: Record<string, string>,
+  showAll?: boolean
+): Promise<ChecksumResult> {
   let valid = 0;
   let invalid = 0;
   let missing = 0;
@@ -117,10 +152,7 @@ async function verifyAllChecksums(packageDir, checksums, showAll) {
   return { valid, invalid, missing };
 }
 
-/**
- * Display verification summary
- */
-function displaySummary(valid, invalid, missing) {
+function displaySummary(valid: number, invalid: number, missing: number): void {
   console.log(chalk.bold("\n=== Summary ===\n"));
 
   if (invalid === 0 && missing === 0) {
@@ -139,10 +171,10 @@ function displaySummary(valid, invalid, missing) {
   console.log();
 }
 
-/**
- * Verify package integrity
- */
-async function verifyPackage(packagePath, options) {
+async function verifyPackage(
+  packagePath: string,
+  options: VerifyOptions
+): Promise<void> {
   const tempDir = join(tmpdir(), `cin-verify-${Date.now()}`);
   mkdirSync(tempDir, { recursive: true });
 
@@ -152,7 +184,7 @@ async function verifyPackage(packagePath, options) {
     await extractTar({ file: packagePath, cwd: tempDir });
     spin.succeed("Package extracted");
   } catch (error) {
-    spin.fail(`Failed to extract package: ${error.message}`);
+    spin.fail(`Failed to extract package: ${(error as Error).message}`);
     rmSync(tempDir, { recursive: true });
     process.exit(1);
   }
@@ -173,7 +205,7 @@ async function verifyPackage(packagePath, options) {
     process.exit(1);
   }
 
-  const manifest = JSON.parse(readFileSync(manifestPath, "utf-8"));
+  const manifest: Manifest = JSON.parse(readFileSync(manifestPath, "utf-8"));
 
   displayPackageInfo(manifest);
   displayRepositories(manifest);
@@ -181,7 +213,7 @@ async function verifyPackage(packagePath, options) {
 
   console.log(chalk.bold("\n=== Checksum Verification ===\n"));
 
-  const checksums = manifest.checksums || {};
+  const checksums = manifest.checksums ?? {};
   const { valid, invalid, missing } = await verifyAllChecksums(
     packageDir,
     checksums,
@@ -197,10 +229,7 @@ async function verifyPackage(packagePath, options) {
   }
 }
 
-/**
- * Format file size
- */
-function formatSize(bytes) {
+function formatSize(bytes: number): string {
   const units = ["B", "KB", "MB", "GB"];
   let size = bytes;
   let unitIndex = 0;

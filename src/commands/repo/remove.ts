@@ -6,7 +6,7 @@ export const removeCommand = new Command("remove")
   .alias("rm")
   .description("Remove a repository")
   .argument("<name>", "Repository name")
-  .action((name) => {
+  .action((name: string) => {
     if (!projectConfigExists()) {
       logger.error("Project not initialized. Run 'cin init' first.");
       process.exit(1);
@@ -16,7 +16,7 @@ export const removeCommand = new Command("remove")
       removeRepository(name);
       logger.success(`Removed repository ${formatRepo(name)}`);
     } catch (error) {
-      logger.error(error.message);
+      logger.error((error as Error).message);
       process.exit(1);
     }
   });

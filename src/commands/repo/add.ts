@@ -11,6 +11,15 @@ import { formatRepo, logger } from "../../utils/logger.js";
 const REPO_NAME_SLASH_PATTERN = /\/([^/]+?)(?:\.git)?$/;
 const REPO_NAME_COLON_PATTERN = /:([^/]+?)(?:\.git)?$/;
 
+interface AddOptions {
+  branch: string;
+  compose: string;
+  key?: string;
+  name?: string;
+  submodules: boolean;
+  submodulesKeys?: string;
+}
+
 export const addCommand = new Command("add")
   .description("Add a repository")
   .argument("<url>", "Repository URL (git@github.com:...)")
@@ -24,13 +33,13 @@ export const addCommand = new Command("add")
     "--submodules-keys <json>",
     'SSH keys for submodules: \'{"path":"key-name"}\''
   )
-  .action((url, options) => {
+  .action((url: string, options: AddOptions) => {
     if (!projectConfigExists()) {
       logger.error("Project not initialized. Run 'cin init' first.");
       process.exit(1);
     }
 
-    const name = options.name || extractRepoName(url);
+    const name = options.name ?? extractRepoName(url);
 
     if (options.key) {
       const resolvedKey = resolveSshKey(options.key);
@@ -43,7 +52,7 @@ export const addCommand = new Command("add")
     }
 
     // Parse submodules keys if provided
-    let submodulesKeys = {};
+    let submodulesKeys: Record<string, string> = {};
     if (options.submodulesKeys) {
       try {
         submodulesKeys = JSON.parse(options.submodulesKeys);
@@ -53,21 +62,19 @@ export const addCommand = new Command("add")
       }
     }
 
+    const submodules = options.submodules
+      ? Object.entries(submodulesKeys).map(([path, ssh_key]) => ({
+          path,
+          ssh_key,
+        }))
+      : undefined;
+
     const repo = {
       name,
       url,
       branch: options.branch,
-      ssh_key: options.key || null,
-      submodules: {
-        enabled: options.submodules,
-        recursive: true,
-        keys: submodulesKeys,
-      },
-      docker: {
-        compose_file: options.compose,
-        services: [],
-        build_args: {},
-      },
+      ssh_key: options.key,
+      submodules,
     };
 
     try {
@@ -80,16 +87,16 @@ export const addCommand = new Command("add")
         `  Submodules: ${options.submodules ? "enabled" : "disabled"}`
       );
     } catch (error) {
-      logger.error(error.message);
+      logger.error((error as Error).message);
       process.exit(1);
     }
   });
 
-function extractRepoName(url) {
+function extractRepoName(url: string): string {
   // git@github.com:studio/backend.git -> backend
   // https://github.com/studio/backend.git -> backend
   const match =
-    url.match(REPO_NAME_SLASH_PATTERN) || url.match(REPO_NAME_COLON_PATTERN);
+    url.match(REPO_NAME_SLASH_PATTERN) ?? url.match(REPO_NAME_COLON_PATTERN);
   if (match) {
     return match[1].replace(".git", "");
   }

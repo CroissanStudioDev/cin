@@ -10,12 +10,15 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { Command } from "commander";
-import simpleGit from "simple-git";
+import type { Ora } from "ora";
+import { simpleGit } from "simple-git";
 import { create as createTar } from "tar";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import {
   getRepositories,
+  type ProjectConfig,
   projectConfigExists,
+  type Repository,
   readProjectConfig,
 } from "../lib/config.js";
 import { checksumFile } from "../utils/checksum.js";
@@ -24,19 +27,83 @@ import { formatRepo, logger, spinner } from "../utils/logger.js";
 // Regex for parsing submodule status (moved to top level for performance)
 const SUBMODULE_STATUS_PATTERN = /^[\s-+]?([a-f0-9]+)\s+(\S+)/;
 
+interface PackOptions {
+  images: boolean;
+  name?: string;
+  output: string;
+  sources: boolean;
+}
+
+interface DockerImage {
+  name: string;
+  size: number;
+}
+
+interface RepoInfo {
+  branch?: string;
+  commit: string;
+  commit_date: string;
+  name: string;
+  submodules: Array<{ path: string; commit: string }>;
+  url: string;
+}
+
+interface Manifest {
+  checksums: Record<string, string>;
+  docker: {
+    images: DockerImage[];
+    total_size: number;
+  };
+  package: {
+    name: string;
+    created: string;
+    created_by: string;
+  };
+  project: ProjectConfig["project"];
+  repositories: RepoInfo[];
+  vendor: ProjectConfig["vendor"];
+  version: string;
+}
+
+interface ComposeService {
+  build?: string | object;
+  image?: string;
+  restart?: string;
+  [key: string]: unknown;
+}
+
+interface ComposeFile {
+  networks?: Record<string, unknown>;
+  services?: Record<string, ComposeService>;
+  version?: string;
+  volumes?: Record<string, unknown>;
+}
+
+interface OfflineCompose {
+  networks?: Record<string, unknown>;
+  services: Record<string, ComposeService>;
+  version: string;
+  volumes?: Record<string, unknown>;
+}
+
 export const packCommand = new Command("pack")
   .description("Create offline package for deployment")
   .option("-o, --output <path>", "Output directory", "./releases")
   .option("-n, --name <name>", "Package name (default: from project config)")
   .option("--no-sources", "Exclude git bundles (images only)")
   .option("--no-images", "Exclude Docker images (sources only)")
-  .action(async (options) => {
+  .action(async (options: PackOptions) => {
     if (!projectConfigExists()) {
       logger.error("Project not initialized. Run 'cin init' first.");
       process.exit(1);
     }
 
     const config = readProjectConfig();
+    if (!config) {
+      logger.error("Project not initialized. Run 'cin init' first.");
+      process.exit(1);
+    }
+
     const repos = getRepositories();
 
     if (repos.length === 0) {
@@ -59,13 +126,15 @@ export const packCommand = new Command("pack")
     await createPackage(config, repos, reposDir, options);
   });
 
-/**
- * Create the offline package
- */
-async function createPackage(config, repos, reposDir, options) {
-  const projectName = config.project?.name || "project";
+async function createPackage(
+  config: ProjectConfig,
+  repos: Repository[],
+  reposDir: string,
+  options: PackOptions
+): Promise<void> {
+  const projectName = config.project?.name ?? "project";
   const date = new Date().toISOString().split("T")[0];
-  const packageName = options.name || `${projectName}-${date}`;
+  const packageName = options.name ?? `${projectName}-${date}`;
   const outputDir = options.output;
 
   // Create staging directory
@@ -77,15 +146,15 @@ async function createPackage(config, repos, reposDir, options) {
   mkdirSync(join(stagingDir, "sources"), { recursive: true });
   mkdirSync(join(stagingDir, "docker"), { recursive: true });
 
-  const manifest = {
+  const manifest: Manifest = {
     version: "1.0",
     package: {
       name: packageName,
       created: new Date().toISOString(),
       created_by: "cin-cli@0.1.0",
     },
-    project: config.project || {},
-    vendor: config.vendor || {},
+    project: config.project,
+    vendor: config.vendor,
     repositories: [],
     docker: {
       images: [],
@@ -114,7 +183,7 @@ async function createPackage(config, repos, reposDir, options) {
   }
 
   // Generate offline docker-compose.yml
-  await generateOfflineCompose(repos, reposDir, stagingDir, manifest);
+  generateOfflineCompose(repos, reposDir, stagingDir, manifest);
 
   // Calculate checksums
   await calculateChecksums(stagingDir, manifest);
@@ -149,7 +218,7 @@ async function createPackage(config, repos, reposDir, options) {
     const shortHash = archiveChecksum.replace("sha256:", "").substring(0, 16);
     logger.info(`  SHA256: ${shortHash}...`);
   } catch (error) {
-    spin.fail(`Failed to create archive: ${error.message}`);
+    spin.fail(`Failed to create archive: ${(error as Error).message}`);
     process.exit(1);
   } finally {
     // Cleanup staging directory
@@ -157,10 +226,11 @@ async function createPackage(config, repos, reposDir, options) {
   }
 }
 
-/**
- * Create git bundle for a repository
- */
-async function createGitBundle(repo, repoPath, stagingDir) {
+async function createGitBundle(
+  repo: Repository,
+  repoPath: string,
+  stagingDir: string
+): Promise<void> {
   const spin = spinner(
     `Creating bundle for ${formatRepo(repo.name)}...`
   ).start();
@@ -174,18 +244,22 @@ async function createGitBundle(repo, repoPath, stagingDir) {
     spin.succeed(`Bundle created: ${repo.name}.bundle`);
 
     // Handle submodules
-    if (repo.submodules?.enabled !== false) {
+    if (repo.submodules !== undefined) {
       await bundleSubmodules(repo, repoPath, stagingDir, spin);
     }
   } catch (error) {
-    spin.fail(`Failed to create bundle for ${repo.name}: ${error.message}`);
+    spin.fail(
+      `Failed to create bundle for ${repo.name}: ${(error as Error).message}`
+    );
   }
 }
 
-/**
- * Bundle submodules
- */
-async function bundleSubmodules(repo, repoPath, stagingDir, spin) {
+async function bundleSubmodules(
+  repo: Repository,
+  repoPath: string,
+  stagingDir: string,
+  spin: Ora
+): Promise<void> {
   const git = simpleGit(repoPath);
 
   try {
@@ -221,25 +295,25 @@ async function bundleSubmodules(repo, repoPath, stagingDir, spin) {
   }
 }
 
-/**
- * Get repository info for manifest
- */
-async function getRepoInfo(repo, repoPath) {
+async function getRepoInfo(
+  repo: Repository,
+  repoPath: string
+): Promise<RepoInfo> {
   const git = simpleGit(repoPath);
   const log = await git.log({ n: 1 });
   const commit = log.latest;
 
-  const info = {
+  const info: RepoInfo = {
     name: repo.name,
     url: repo.url,
     branch: repo.branch,
-    commit: commit?.hash || "unknown",
-    commit_date: commit?.date || new Date().toISOString(),
+    commit: commit?.hash ?? "unknown",
+    commit_date: commit?.date ?? new Date().toISOString(),
     submodules: [],
   };
 
   // Get submodule info
-  if (repo.submodules?.enabled !== false) {
+  if (repo.submodules !== undefined) {
     try {
       const submoduleStatus = await git.subModule(["status"]);
       if (submoduleStatus.trim()) {
@@ -262,23 +336,22 @@ async function getRepoInfo(repo, repoPath) {
   return info;
 }
 
-/**
- * Collect Docker images from compose files
- */
-function collectDockerImages(repos, reposDir) {
-  const images = new Set();
+function collectDockerImages(
+  repos: Repository[],
+  reposDir: string
+): Set<string> {
+  const images = new Set<string>();
 
   for (const repo of repos) {
     const repoPath = join(reposDir, repo.name);
-    const composeFile = repo.docker?.compose_file || "docker-compose.yml";
-    const composePath = join(repoPath, composeFile);
+    const composePath = join(repoPath, "docker-compose.yml");
 
     if (!existsSync(composePath)) {
       continue;
     }
 
     const composeContent = readFileSync(composePath, "utf-8");
-    const compose = parseYaml(composeContent);
+    const compose = parseYaml(composeContent) as ComposeFile;
 
     if (compose.services) {
       for (const [serviceName, service] of Object.entries(compose.services)) {
@@ -294,10 +367,7 @@ function collectDockerImages(repos, reposDir) {
   return images;
 }
 
-/**
- * Get image size from docker inspect
- */
-async function getImageSize(image) {
+async function getImageSize(image: string): Promise<number> {
   try {
     const output = await runCommand("docker", [
       "inspect",
@@ -311,10 +381,12 @@ async function getImageSize(image) {
   }
 }
 
-/**
- * Export Docker images
- */
-async function exportDockerImages(repos, reposDir, stagingDir, manifest) {
+async function exportDockerImages(
+  repos: Repository[],
+  reposDir: string,
+  stagingDir: string,
+  manifest: Manifest
+): Promise<void> {
   const spin = spinner("Collecting Docker images...").start();
 
   const images = collectDockerImages(repos, reposDir);
@@ -341,19 +413,20 @@ async function exportDockerImages(repos, reposDir, stagingDir, manifest) {
 
     spin.succeed(`Exported ${images.size} Docker image(s)`);
   } catch (error) {
-    spin.fail(`Failed to export images: ${error.message}`);
+    spin.fail(`Failed to export images: ${(error as Error).message}`);
     logger.info("Make sure all images are built with 'cin build'");
   }
 }
 
-/**
- * Convert a service for offline use (replace build with image)
- */
-function convertServiceForOffline(service, repoName, serviceName) {
-  const { build, ...rest } = service;
-  const offlineService = { ...rest };
+function convertServiceForOffline(
+  service: ComposeService,
+  repoName: string,
+  serviceName: string
+): ComposeService {
+  const { build: _build, ...rest } = service;
+  const offlineService: ComposeService = { ...rest };
 
-  if (build) {
+  if (_build) {
     offlineService.image = `${repoName}-${serviceName}:latest`;
   }
 
@@ -364,20 +437,20 @@ function convertServiceForOffline(service, repoName, serviceName) {
   return offlineService;
 }
 
-/**
- * Process a single repo's compose file
- */
-function processRepoCompose(repo, reposDir, offlineCompose) {
+function processRepoCompose(
+  repo: Repository,
+  reposDir: string,
+  offlineCompose: OfflineCompose
+): void {
   const repoPath = join(reposDir, repo.name);
-  const composeFile = repo.docker?.compose_file || "docker-compose.yml";
-  const composePath = join(repoPath, composeFile);
+  const composePath = join(repoPath, "docker-compose.yml");
 
   if (!existsSync(composePath)) {
     return;
   }
 
   const composeContent = readFileSync(composePath, "utf-8");
-  const compose = parseYaml(composeContent);
+  const compose = parseYaml(composeContent) as ComposeFile;
 
   if (compose.services) {
     for (const [serviceName, service] of Object.entries(compose.services)) {
@@ -391,21 +464,26 @@ function processRepoCompose(repo, reposDir, offlineCompose) {
   }
 
   if (compose.volumes) {
-    Object.assign(offlineCompose.volumes, compose.volumes);
+    offlineCompose.volumes = { ...offlineCompose.volumes, ...compose.volumes };
   }
 
   if (compose.networks) {
-    Object.assign(offlineCompose.networks, compose.networks);
+    offlineCompose.networks = {
+      ...offlineCompose.networks,
+      ...compose.networks,
+    };
   }
 }
 
-/**
- * Generate offline docker-compose.yml
- */
-function generateOfflineCompose(repos, reposDir, stagingDir, manifest) {
+function generateOfflineCompose(
+  repos: Repository[],
+  reposDir: string,
+  stagingDir: string,
+  manifest: Manifest
+): void {
   const spin = spinner("Generating offline compose file...").start();
 
-  const offlineCompose = {
+  const offlineCompose: OfflineCompose = {
     version: "3.8",
     services: {},
     volumes: {},
@@ -416,11 +494,11 @@ function generateOfflineCompose(repos, reposDir, stagingDir, manifest) {
     processRepoCompose(repo, reposDir, offlineCompose);
   }
 
-  // Clean up empty sections (set to undefined instead of delete)
-  if (Object.keys(offlineCompose.volumes).length === 0) {
+  // Clean up empty sections
+  if (Object.keys(offlineCompose.volumes ?? {}).length === 0) {
     offlineCompose.volumes = undefined;
   }
-  if (Object.keys(offlineCompose.networks).length === 0) {
+  if (Object.keys(offlineCompose.networks ?? {}).length === 0) {
     offlineCompose.networks = undefined;
   }
 
@@ -437,10 +515,10 @@ ${stringifyYaml(offlineCompose)}`;
   spin.succeed("Generated offline docker-compose.yml");
 }
 
-/**
- * Calculate checksums for all files
- */
-async function calculateChecksums(stagingDir, manifest) {
+async function calculateChecksums(
+  stagingDir: string,
+  manifest: Manifest
+): Promise<void> {
   const spin = spinner("Calculating checksums...").start();
 
   const files = getAllFiles(stagingDir);
@@ -457,10 +535,7 @@ async function calculateChecksums(stagingDir, manifest) {
   spin.succeed(`Calculated ${checksumCount} checksum(s)`);
 }
 
-/**
- * Get all files in a directory recursively
- */
-function getAllFiles(dir, files = []) {
+function getAllFiles(dir: string, files: string[] = []): string[] {
   const entries = readdirSync(dir);
 
   for (const entry of entries) {
@@ -477,20 +552,17 @@ function getAllFiles(dir, files = []) {
   return files;
 }
 
-/**
- * Run a command and return output
- */
-function runCommand(cmd, args) {
+function runCommand(cmd: string, args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
     const proc = spawn(cmd, args, { stdio: ["ignore", "pipe", "pipe"] });
 
     let stdout = "";
     let stderr = "";
 
-    proc.stdout.on("data", (data) => {
+    proc.stdout.on("data", (data: Buffer) => {
       stdout += data.toString();
     });
-    proc.stderr.on("data", (data) => {
+    proc.stderr.on("data", (data: Buffer) => {
       stderr += data.toString();
     });
 
@@ -508,10 +580,7 @@ function runCommand(cmd, args) {
   });
 }
 
-/**
- * Format file size for display
- */
-function formatSize(bytes) {
+function formatSize(bytes: number): string {
   const units = ["B", "KB", "MB", "GB"];
   let size = bytes;
   let unitIndex = 0;

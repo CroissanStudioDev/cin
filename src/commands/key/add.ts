@@ -9,7 +9,7 @@ export const addCommand = new Command("add")
   .description("Add an SSH key")
   .argument("<name>", "Key name (for reference)")
   .argument("<path>", "Path to SSH key file")
-  .action((name, keyPath) => {
+  .action((name: string, keyPath: string) => {
     if (!globalConfigExists()) {
       logger.error("Global config not found. Run 'cin init --global' first.");
       process.exit(1);
@@ -33,7 +33,7 @@ export const addCommand = new Command("add")
       addSshKey(name, storedPath);
       logger.success(`Added SSH key '${name}' -> ${storedPath}`);
     } catch (error) {
-      logger.error(error.message);
+      logger.error((error as Error).message);
       process.exit(1);
     }
   });

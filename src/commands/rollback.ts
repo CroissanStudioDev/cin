@@ -13,13 +13,39 @@ import chalk from "chalk";
 import { Command } from "commander";
 import { formatVersion, logger, spinner } from "../utils/logger.js";
 
+interface RollbackOptions {
+  list?: boolean;
+  start: boolean;
+  target: string;
+  to?: string;
+}
+
+interface Version {
+  mtime: Date;
+  name: string;
+  path: string;
+}
+
+interface Manifest {
+  package?: {
+    created?: string;
+  };
+}
+
+interface DeployState {
+  current_version: string;
+  deployed_at: string;
+  manifest?: Manifest;
+  rolled_back_from?: string;
+}
+
 export const rollbackCommand = new Command("rollback")
   .description("Rollback to a previous version")
   .option("-t, --target <path>", "Target directory", "/opt/app")
   .option("-l, --list", "List available versions")
   .option("--to <version>", "Rollback to specific version")
   .option("--no-start", "Do not start services after rollback")
-  .action(async (options) => {
+  .action(async (options: RollbackOptions) => {
     const targetDir = resolve(options.target);
 
     if (!existsSync(targetDir)) {
@@ -35,17 +61,14 @@ export const rollbackCommand = new Command("rollback")
     await performRollback(targetDir, options);
   });
 
-/**
- * List available versions for rollback
- */
-function listVersions(targetDir) {
+function listVersions(targetDir: string): void {
   const versionsDir = join(targetDir, "versions");
   const stateFile = join(targetDir, ".cin", "state.json");
 
   // Get current version
-  let currentVersion = null;
+  let currentVersion: string | null = null;
   if (existsSync(stateFile)) {
-    const state = JSON.parse(readFileSync(stateFile, "utf-8"));
+    const state: DeployState = JSON.parse(readFileSync(stateFile, "utf-8"));
     currentVersion = state.current_version;
   }
 
@@ -80,7 +103,9 @@ function listVersions(targetDir) {
     // Show manifest info if available
     const manifestPath = join(version.path, "manifest.json");
     if (existsSync(manifestPath)) {
-      const manifest = JSON.parse(readFileSync(manifestPath, "utf-8"));
+      const manifest: Manifest = JSON.parse(
+        readFileSync(manifestPath, "utf-8")
+      );
       if (manifest.package?.created) {
         console.log(`      Package: ${chalk.gray(manifest.package.created)}`);
       }
@@ -93,10 +118,7 @@ function listVersions(targetDir) {
   console.log();
 }
 
-/**
- * Get sorted list of versions
- */
-function getVersionsList(versionsDir) {
+function getVersionsList(versionsDir: string): Version[] {
   return readdirSync(versionsDir)
     .map((name) => {
       const versionPath = join(versionsDir, name);
@@ -111,10 +133,10 @@ function getVersionsList(versionsDir) {
     .sort((a, b) => b.mtime.getTime() - a.mtime.getTime());
 }
 
-/**
- * Perform rollback to a previous version
- */
-async function performRollback(targetDir, options) {
+async function performRollback(
+  targetDir: string,
+  options: RollbackOptions
+): Promise<void> {
   const versionsDir = join(targetDir, "versions");
   const currentDir = join(targetDir, "current");
   const stateFile = join(targetDir, ".cin", "state.json");
@@ -132,16 +154,17 @@ async function performRollback(targetDir, options) {
   }
 
   // Find version to rollback to
-  let targetVersion;
+  let targetVersion: Version | undefined;
 
   if (options.to) {
-    targetVersion = versions.find((v) => v.name === options.to);
+    const toVersion = options.to;
+    targetVersion = versions.find((v) => v.name === toVersion);
     if (!targetVersion) {
       // Try partial match
-      targetVersion = versions.find((v) => v.name.startsWith(options.to));
+      targetVersion = versions.find((v) => v.name.startsWith(toVersion));
     }
     if (!targetVersion) {
-      logger.error(`Version not found: ${options.to}`);
+      logger.error(`Version not found: ${toVersion}`);
       logger.info("Use 'cin rollback --list' to see available versions");
       process.exit(1);
     }
@@ -151,7 +174,7 @@ async function performRollback(targetDir, options) {
   }
 
   // Get current state
-  let currentState = null;
+  let currentState: DeployState | null = null;
   if (existsSync(stateFile)) {
     currentState = JSON.parse(readFileSync(stateFile, "utf-8"));
   }
@@ -172,7 +195,7 @@ async function performRollback(targetDir, options) {
   }
 
   // Restore version
-  await restoreVersion(targetVersion, currentDir);
+  restoreVersion(targetVersion, currentDir);
 
   // Load Docker images if available
   const imagesPath = join(targetVersion.path, "images.tar");
@@ -196,10 +219,7 @@ async function performRollback(targetDir, options) {
   }
 }
 
-/**
- * Extract version name from backup folder name
- */
-function extractVersionName(backupName) {
+function extractVersionName(backupName: string): string {
   // Format: versionName_timestamp
   const parts = backupName.split("_");
   if (parts.length >= 2) {
@@ -210,10 +230,7 @@ function extractVersionName(backupName) {
   return backupName;
 }
 
-/**
- * Stop current services
- */
-async function stopServices(currentDir) {
+async function stopServices(currentDir: string): Promise<void> {
   const spin = spinner("Stopping current services...").start();
 
   try {
@@ -224,10 +241,7 @@ async function stopServices(currentDir) {
   }
 }
 
-/**
- * Restore version to current directory
- */
-function restoreVersion(version, currentDir) {
+function restoreVersion(version: Version, currentDir: string): void {
   const spin = spinner("Restoring version...").start();
 
   try {
@@ -247,15 +261,12 @@ function restoreVersion(version, currentDir) {
 
     spin.succeed("Version restored");
   } catch (error) {
-    spin.fail(`Failed to restore version: ${error.message}`);
+    spin.fail(`Failed to restore version: ${(error as Error).message}`);
     throw error;
   }
 }
 
-/**
- * Load Docker images
- */
-async function loadDockerImages(imagesPath) {
+async function loadDockerImages(imagesPath: string): Promise<void> {
   const spin = spinner("Loading Docker images...").start();
 
   try {
@@ -265,38 +276,32 @@ async function loadDockerImages(imagesPath) {
     await runCommand("docker", ["load", "-i", imagesPath]);
     spin.succeed("Docker images loaded");
   } catch (error) {
-    spin.warn(`Could not load images: ${error.message}`);
+    spin.warn(`Could not load images: ${(error as Error).message}`);
   }
 }
 
-/**
- * Update deployment state
- */
-function updateState(targetDir, version) {
+function updateState(targetDir: string, version: Version): void {
   const cinDir = join(targetDir, ".cin");
   const stateFile = join(cinDir, "state.json");
 
   // Try to read manifest from restored version
   const manifestPath = join(version.path, "manifest.json");
-  let manifest = null;
+  let manifest: Manifest | null = null;
   if (existsSync(manifestPath)) {
     manifest = JSON.parse(readFileSync(manifestPath, "utf-8"));
   }
 
-  const state = {
+  const state: DeployState = {
     current_version: extractVersionName(version.name),
     deployed_at: new Date().toISOString(),
     rolled_back_from: version.name,
-    manifest,
+    manifest: manifest ?? undefined,
   };
 
   writeFileSync(stateFile, JSON.stringify(state, null, 2));
 }
 
-/**
- * Start services
- */
-async function startServices(currentDir) {
+async function startServices(currentDir: string): Promise<void> {
   const spin = spinner("Starting services...").start();
 
   const composePath = join(currentDir, "docker-compose.yml");
@@ -316,14 +321,19 @@ async function startServices(currentDir) {
     );
     console.log(`\n${output}`);
   } catch (error) {
-    spin.fail(`Failed to start services: ${error.message}`);
+    spin.fail(`Failed to start services: ${(error as Error).message}`);
   }
 }
 
-/**
- * Run a command
- */
-function runCommand(cmd, args, options = {}) {
+interface RunOptions {
+  cwd?: string;
+}
+
+function runCommand(
+  cmd: string,
+  args: string[],
+  options: RunOptions = {}
+): Promise<string> {
   return new Promise((resolve, reject) => {
     const proc = spawn(cmd, args, {
       stdio: ["ignore", "pipe", "pipe"],
@@ -333,10 +343,10 @@ function runCommand(cmd, args, options = {}) {
     let stdout = "";
     let stderr = "";
 
-    proc.stdout.on("data", (data) => {
+    proc.stdout.on("data", (data: Buffer) => {
       stdout += data.toString();
     });
-    proc.stderr.on("data", (data) => {
+    proc.stderr.on("data", (data: Buffer) => {
       stderr += data.toString();
     });
 
@@ -354,10 +364,7 @@ function runCommand(cmd, args, options = {}) {
   });
 }
 
-/**
- * Format file size
- */
-function formatSize(bytes) {
+function formatSize(bytes: number): string {
   const units = ["B", "KB", "MB", "GB"];
   let size = bytes;
   let unitIndex = 0;

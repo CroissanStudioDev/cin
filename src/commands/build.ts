@@ -2,15 +2,34 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { Command } from "commander";
-import { getRepositories, projectConfigExists } from "../lib/config.js";
+import type { Ora } from "ora";
+import {
+  getRepositories,
+  projectConfigExists,
+  type Repository,
+} from "../lib/config.js";
 import { formatRepo, logger, spinner } from "../utils/logger.js";
+
+type BuildResult = "built" | "skipped" | "failed";
+
+interface BuildOptions {
+  cache: boolean;
+  parallel?: boolean;
+  repo?: string;
+}
+
+interface RepoDocker {
+  build_args?: Record<string, string>;
+  compose_file?: string;
+  services?: string[];
+}
 
 export const buildCommand = new Command("build")
   .description("Build Docker images for repositories")
   .option("-r, --repo <name>", "Build specific repository")
   .option("--no-cache", "Build without Docker cache")
   .option("--parallel", "Build services in parallel")
-  .action(async (options) => {
+  .action(async (options: BuildOptions) => {
     if (!projectConfigExists()) {
       logger.error("Project not initialized. Run 'cin init' first.");
       process.exit(1);
@@ -52,10 +71,11 @@ export const buildCommand = new Command("build")
     }
   });
 
-/**
- * Build Docker images for a repository
- */
-async function buildRepository(repo, reposDir, options) {
+async function buildRepository(
+  repo: Repository & { docker?: RepoDocker },
+  reposDir: string,
+  options: BuildOptions
+): Promise<BuildResult> {
   const repoPath = join(reposDir, repo.name);
 
   if (!existsSync(repoPath)) {
@@ -63,7 +83,7 @@ async function buildRepository(repo, reposDir, options) {
     return "skipped";
   }
 
-  const composeFile = repo.docker?.compose_file || "docker-compose.yml";
+  const composeFile = repo.docker?.compose_file ?? "docker-compose.yml";
   const composePath = join(repoPath, composeFile);
 
   if (!existsSync(composePath)) {
@@ -79,16 +99,16 @@ async function buildRepository(repo, reposDir, options) {
     spin.succeed(`${formatRepo(repo.name)}: built successfully`);
     return "built";
   } catch (error) {
-    spin.fail(`${formatRepo(repo.name)}: ${error.message}`);
+    spin.fail(`${formatRepo(repo.name)}: ${(error as Error).message}`);
     return "failed";
   }
 }
 
-/**
- * Build docker-compose command arguments
- */
-function buildDockerComposeArgs(repo, options) {
-  const composeFile = repo.docker?.compose_file || "docker-compose.yml";
+function buildDockerComposeArgs(
+  repo: Repository & { docker?: RepoDocker },
+  options: BuildOptions
+): string[] {
+  const composeFile = repo.docker?.compose_file ?? "docker-compose.yml";
   const args = ["-f", composeFile, "build"];
 
   // Add --no-cache if specified
@@ -102,13 +122,13 @@ function buildDockerComposeArgs(repo, options) {
   }
 
   // Add build args from config
-  const buildArgs = repo.docker?.build_args || {};
+  const buildArgs = repo.docker?.build_args ?? {};
   for (const [key, value] of Object.entries(buildArgs)) {
     args.push("--build-arg", `${key}=${value}`);
   }
 
   // Add specific services if configured
-  const services = repo.docker?.services || [];
+  const services = repo.docker?.services ?? [];
   if (services.length > 0) {
     args.push(...services);
   }
@@ -116,10 +136,11 @@ function buildDockerComposeArgs(repo, options) {
   return args;
 }
 
-/**
- * Run docker-compose command
- */
-function runDockerCompose(cwd, args, spin) {
+function runDockerCompose(
+  cwd: string,
+  args: string[],
+  spin: Ora
+): Promise<string> {
   return new Promise((resolve, reject) => {
     const proc = spawn("docker", ["compose", ...args], {
       cwd,
@@ -129,7 +150,7 @@ function runDockerCompose(cwd, args, spin) {
     let stdout = "";
     let stderr = "";
 
-    proc.stdout.on("data", (data) => {
+    proc.stdout.on("data", (data: Buffer) => {
       stdout += data.toString();
       // Update spinner with last line of output
       const lines = data.toString().trim().split("\n");
@@ -139,7 +160,7 @@ function runDockerCompose(cwd, args, spin) {
       }
     });
 
-    proc.stderr.on("data", (data) => {
+    proc.stderr.on("data", (data: Buffer) => {
       stderr += data.toString();
       // Docker compose outputs progress to stderr
       const lines = data.toString().trim().split("\n");

@@ -1,11 +1,13 @@
 import { Command } from "commander";
 import inquirer from "inquirer";
 import {
+  type GlobalConfig,
   getGlobalConfigPath,
   getProjectConfigPath,
   globalConfigExists,
   initGlobalConfig,
   initProjectConfig,
+  type ProjectConfig,
   projectConfigExists,
 } from "../lib/config.js";
 import { formatPath, logger } from "../utils/logger.js";
@@ -14,7 +16,7 @@ export const initCommand = new Command("init")
   .description("Initialize a new CIN project")
   .option("-g, --global", "Initialize global config only")
   .option("-y, --yes", "Use defaults without prompts")
-  .action(async (options) => {
+  .action(async (options: { global?: boolean; yes?: boolean }) => {
     if (options.global) {
       await initGlobal(options.yes);
     } else {
@@ -22,7 +24,7 @@ export const initCommand = new Command("init")
     }
   });
 
-async function initGlobal(useDefaults) {
+async function initGlobal(useDefaults?: boolean): Promise<void> {
   if (globalConfigExists()) {
     logger.skip(
       `Global config already exists at ${formatPath(getGlobalConfigPath())}`
@@ -30,7 +32,7 @@ async function initGlobal(useDefaults) {
     return;
   }
 
-  const config = {};
+  const config: Partial<GlobalConfig> = {};
 
   if (!useDefaults) {
     const answers = await inquirer.prompt([
@@ -50,7 +52,7 @@ async function initGlobal(useDefaults) {
   );
 }
 
-async function initProject(useDefaults) {
+async function initProject(useDefaults?: boolean): Promise<void> {
   if (projectConfigExists()) {
     logger.skip(
       `Project already initialized at ${formatPath(getProjectConfigPath())}`
@@ -64,12 +66,12 @@ async function initProject(useDefaults) {
     await initGlobal(useDefaults);
   }
 
-  let config = {};
+  let config: Partial<ProjectConfig>;
 
   if (useDefaults) {
     config = {
       project: {
-        name: process.cwd().split("/").pop(),
+        name: process.cwd().split("/").pop() ?? "unnamed",
         type: "docker-compose",
       },
     };

@@ -1,10 +1,7 @@
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 
-/**
- * Calculate SHA256 checksum of a file
- */
-export function checksumFile(filePath) {
+export function checksumFile(filePath: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const hash = createHash("sha256");
     const stream = createReadStream(filePath);
@@ -15,10 +12,7 @@ export function checksumFile(filePath) {
   });
 }
 
-/**
- * Calculate SHA256 checksum of a string
- */
-export function checksumString(str) {
+export function checksumString(str: string): string {
   const hash = createHash("sha256");
   hash.update(str);
   return `sha256:${hash.digest("hex")}`;

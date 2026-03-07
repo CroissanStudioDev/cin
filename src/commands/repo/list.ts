@@ -24,7 +24,7 @@ export const listCommand = new Command("list")
     for (const repo of repos) {
       console.log(chalk.yellow(`  ${repo.name}`));
       console.log(chalk.gray(`    URL: ${repo.url}`));
-      console.log(chalk.gray(`    Branch: ${repo.branch}`));
+      console.log(chalk.gray(`    Branch: ${repo.branch ?? "main"}`));
       if (repo.ssh_key) {
         console.log(chalk.gray(`    SSH Key: ${repo.ssh_key}`));
       }
