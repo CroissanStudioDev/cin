@@ -1,11 +1,16 @@
 {
-  "name": "cin",
+  "name": "@croissan/cin",
   "version": "0.1.0",
   "description": "CLI for delivering code to airgapped environments",
   "type": "module",
   "bin": {
     "cin": "./dist/bin/cin.js"
   },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "dev": "tsx bin/cin.ts",
     "build": "tsc",
@@ -13,17 +18,29 @@
     "typecheck": "tsc --noEmit",
     "check": "ultracite check",
     "fix": "ultracite fix",
-    "prepare": "lefthook install"
+    "prepare": "lefthook install",
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "cli",
     "airgapped",
     "docker",
     "deployment",
-    "offline"
+    "offline",
+    "docker-compose",
+    "rollback",
+    "secrets"
   ],
-  "author": "",
+  "author": "Croissan Studio",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/croissan/cin.git"
+  },
+  "homepage": "https://github.com/croissan/cin#readme",
+  "bugs": {
+    "url": "https://github.com/croissan/cin/issues"
+  },
   "engines": {
     "node": ">=20.0.0"
   },
