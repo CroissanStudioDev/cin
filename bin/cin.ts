@@ -11,6 +11,7 @@ import { repoCommand } from "../src/commands/repo/index.js";
 import { rollbackCommand } from "../src/commands/rollback.js";
 import { statusCommand } from "../src/commands/status.js";
 import { verifyCommand } from "../src/commands/verify.js";
+import { runInteractiveMenu } from "../src/menu.js";
 
 program
   .name("cin")
@@ -28,4 +29,9 @@ program.addCommand(verifyCommand);
 program.addCommand(rollbackCommand);
 program.addCommand(statusCommand);
 
-program.parse();
+// Show interactive menu if no arguments provided
+if (process.argv.length <= 2) {
+  runInteractiveMenu().catch(console.error);
+} else {
+  program.parse();
+}
