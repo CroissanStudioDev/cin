@@ -220,15 +220,73 @@ export function getSshKeys(): SshKeys {
   return config.ssh_keys ?? {};
 }
 
-export function resolveSshKey(keyNameOrPath: string): string | null {
-  if (existsSync(keyNameOrPath)) {
+export function getProjectKeysDir(cwd = process.cwd()): string {
+  return join(cwd, ".cin", "keys");
+}
+
+export function resolveSshKey(
+  keyNameOrPath: string,
+  cwd = process.cwd()
+): string | null {
+  // 1. Absolute path
+  if (keyNameOrPath.startsWith("/") && existsSync(keyNameOrPath)) {
     return keyNameOrPath;
   }
+
+  // 2. Home directory path (~/)
+  if (keyNameOrPath.startsWith("~")) {
+    const expanded = keyNameOrPath.replace("~", homedir());
+    if (existsSync(expanded)) {
+      return expanded;
+    }
+  }
+
+  // 3. Relative path (to project directory)
+  const relativePath = join(cwd, keyNameOrPath);
+  if (existsSync(relativePath)) {
+    return relativePath;
+  }
+
+  // 4. Check .cin/keys/ directory
+  const projectKeyPath = join(getProjectKeysDir(cwd), keyNameOrPath);
+  if (existsSync(projectKeyPath)) {
+    return projectKeyPath;
+  }
+
+  // 5. Check global config by name
   const keys = getSshKeys();
   if (keys[keyNameOrPath]) {
-    return keys[keyNameOrPath].replace("~", homedir());
+    const globalPath = keys[keyNameOrPath].replace("~", homedir());
+    if (existsSync(globalPath)) {
+      return globalPath;
+    }
   }
+
   return null;
+}
+
+export function copyKeyToProject(
+  sourcePath: string,
+  keyName: string,
+  cwd = process.cwd()
+): string {
+  const keysDir = getProjectKeysDir(cwd);
+  mkdirSync(keysDir, { recursive: true });
+
+  const destPath = join(keysDir, keyName);
+  const sourceResolved = sourcePath.startsWith("~")
+    ? sourcePath.replace("~", homedir())
+    : sourcePath;
+
+  if (!existsSync(sourceResolved)) {
+    throw new Error(`Source key not found: ${sourceResolved}`);
+  }
+
+  // Copy the key file
+  const content = readFileSync(sourceResolved);
+  writeFileSync(destPath, content, { mode: 0o600 });
+
+  return destPath;
 }
 
 export function getLanguage(): "en" | "ru" | undefined {

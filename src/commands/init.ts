@@ -1,9 +1,12 @@
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { Command } from "commander";
 import inquirer from "inquirer";
 import {
   type GlobalConfig,
   getGlobalConfigPath,
   getProjectConfigPath,
+  getProjectKeysDir,
   globalConfigExists,
   initGlobalConfig,
   initProjectConfig,
@@ -11,6 +14,13 @@ import {
   projectConfigExists,
 } from "../lib/config.js";
 import { formatPath, logger } from "../utils/logger.js";
+
+const GITIGNORE_CONTENT = `# CIN CLI - DO NOT COMMIT PRIVATE KEYS
+*.key
+*.pem
+id_*
+!*.pub
+`;
 
 export const initCommand = new Command("init")
   .description("Initialize a new CIN project")
@@ -113,4 +123,12 @@ async function initProject(useDefaults?: boolean): Promise<void> {
   logger.success(
     `Created project config at ${formatPath(getProjectConfigPath())}`
   );
+
+  // Create keys directory with .gitignore
+  const keysDir = getProjectKeysDir();
+  if (!existsSync(keysDir)) {
+    mkdirSync(keysDir, { recursive: true });
+    writeFileSync(join(keysDir, ".gitignore"), GITIGNORE_CONTENT);
+    logger.success(`Created keys directory at ${formatPath(keysDir)}`);
+  }
 }
