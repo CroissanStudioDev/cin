@@ -2,12 +2,14 @@
 
 import { program } from "commander";
 import { buildCommand } from "../src/commands/build.js";
+import { deployCommand } from "../src/commands/deploy.js";
 import { initCommand } from "../src/commands/init.js";
 import { keyCommand } from "../src/commands/key/index.js";
 import { packCommand } from "../src/commands/pack.js";
 import { pullCommand } from "../src/commands/pull.js";
 import { repoCommand } from "../src/commands/repo/index.js";
 import { statusCommand } from "../src/commands/status.js";
+import { verifyCommand } from "../src/commands/verify.js";
 
 program
   .name("cin")
@@ -20,6 +22,8 @@ program.addCommand(keyCommand);
 program.addCommand(pullCommand);
 program.addCommand(buildCommand);
 program.addCommand(packCommand);
+program.addCommand(deployCommand);
+program.addCommand(verifyCommand);
 program.addCommand(statusCommand);
 
 program.parse();
