@@ -1,6 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
+import { getLanguage } from "../lib/config.js";
 
 export type Locale = "en" | "ru";
 
@@ -63,6 +61,12 @@ export interface Translations {
     alreadyInitialized: string;
     initGlobalFirst: string;
     addReposFirst: string;
+    // Language
+    language: string;
+    languageDesc: string;
+    selectLanguage: string;
+    languageSaved: string;
+    sectionSettings: string;
   };
   repo: {
     title: string;
@@ -124,6 +128,11 @@ const en: Translations = {
     alreadyInitialized: "Already initialized",
     initGlobalFirst: "Initialize global config first",
     addReposFirst: "Add repositories first",
+    language: "Language",
+    languageDesc: "Change interface language",
+    selectLanguage: "Select language:",
+    languageSaved: "Language saved",
+    sectionSettings: "Settings",
   },
   repo: {
     title: "Repositories",
@@ -202,6 +211,11 @@ const ru: Translations = {
     alreadyInitialized: "Уже инициализирован",
     initGlobalFirst: "Сначала инициализируйте глобальный конфиг",
     addReposFirst: "Сначала добавьте репозитории",
+    language: "Язык",
+    languageDesc: "Изменить язык интерфейса",
+    selectLanguage: "Выберите язык:",
+    languageSaved: "Язык сохранён",
+    sectionSettings: "Настройки",
   },
   repo: {
     title: "Репозитории",
@@ -256,19 +270,13 @@ function detectLocale(): Locale {
   }
 
   // 2. Check global config
-  const configPath = join(homedir(), ".cin", "config.yaml");
-  if (existsSync(configPath)) {
-    try {
-      const content = readFileSync(configPath, "utf-8");
-      if (content.includes("language: ru")) {
-        return "ru";
-      }
-      if (content.includes("lang: ru")) {
-        return "ru";
-      }
-    } catch {
-      // Ignore errors
+  try {
+    const configLang = getLanguage();
+    if (configLang) {
+      return configLang;
     }
+  } catch {
+    // Config might not exist yet
   }
 
   // 3. Check system locale

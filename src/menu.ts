@@ -1,11 +1,12 @@
 import chalk from "chalk";
 import inquirer from "inquirer";
-import { t } from "./i18n/index.js";
+import { getLocale, initLocale, setLocale, t } from "./i18n/index.js";
 import {
   getRepositories,
   globalConfigExists,
   projectConfigExists,
   readProjectConfig,
+  setLanguage,
 } from "./lib/config.js";
 
 interface MenuChoice {
@@ -63,7 +64,7 @@ function formatMenuItem(icon: string, label: string, desc: string): string {
   return `${icon} ${padRight(label, 16)} ${chalk.gray(desc)}`;
 }
 
-function getMainMenuChoices(): MenuChoice[] {
+function getMainMenuChoices(): (MenuChoice | inquirer.Separator)[] {
   const hasProject = projectConfigExists();
   const hasGlobal = globalConfigExists();
   const hasRepos = getRepoCount() > 0;
@@ -119,6 +120,11 @@ function getMainMenuChoices(): MenuChoice[] {
     {
       name: formatMenuItem(chalk.magenta("★"), i.rollback, i.rollbackDesc),
       value: "rollback",
+    },
+    new inquirer.Separator(chalk.gray(`─── ${i.sectionSettings} ───`)),
+    {
+      name: formatMenuItem(chalk.gray("⚙"), i.language, i.languageDesc),
+      value: "language",
     },
     new inquirer.Separator(),
     {
@@ -325,11 +331,39 @@ async function handleRollback(): Promise<void> {
   }
 }
 
-export async function runInteractiveMenu(): Promise<void> {
+async function handleLanguage(): Promise<void> {
   const m = t().menu;
-  const e = t().errors;
+  const currentLang = getLocale();
 
+  const { lang } = await inquirer.prompt([
+    {
+      type: "list",
+      name: "lang",
+      message: m.selectLanguage,
+      choices: [
+        { name: "English", value: "en", disabled: currentLang === "en" && "✓" },
+        { name: "Русский", value: "ru", disabled: currentLang === "ru" && "✓" },
+        new inquirer.Separator(),
+        { name: m.back, value: "back" },
+      ],
+    },
+  ]);
+
+  if (lang === "back") {
+    return;
+  }
+
+  setLanguage(lang);
+  setLocale(lang);
+  initLocale();
+  console.log(chalk.green(`✓ ${t().menu.languageSaved}`));
+}
+
+export async function runInteractiveMenu(): Promise<void> {
   while (true) {
+    const m = t().menu;
+    const e = t().errors;
+
     printHeader();
 
     const { action } = await inquirer.prompt([
@@ -338,7 +372,7 @@ export async function runInteractiveMenu(): Promise<void> {
         name: "action",
         message: m.whatToDo,
         choices: getMainMenuChoices(),
-        pageSize: 15,
+        pageSize: 16,
       },
     ]);
 
@@ -390,6 +424,9 @@ export async function runInteractiveMenu(): Promise<void> {
           break;
         case "rollback":
           await handleRollback();
+          break;
+        case "language":
+          await handleLanguage();
           break;
         default:
           break;

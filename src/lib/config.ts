@@ -18,6 +18,7 @@ export interface GlobalConfig {
     output_dir: string;
     branch: string;
   };
+  language?: "en" | "ru";
   organization: {
     name: string;
   };
@@ -228,4 +229,15 @@ export function resolveSshKey(keyNameOrPath: string): string | null {
     return keys[keyNameOrPath].replace("~", homedir());
   }
   return null;
+}
+
+export function getLanguage(): "en" | "ru" | undefined {
+  const config = readGlobalConfig();
+  return config.language;
+}
+
+export function setLanguage(lang: "en" | "ru"): void {
+  const config = readGlobalConfig();
+  config.language = lang;
+  writeGlobalConfig(config);
 }
