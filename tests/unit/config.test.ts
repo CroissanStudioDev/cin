@@ -41,7 +41,9 @@ describe("config", () => {
 
   describe("setConfigPath / getConfigCwd", () => {
     it("should set and get custom config path", () => {
-      const customPath = "/custom/path";
+      // Use testDir which is a valid cross-platform absolute path
+      const customPath = join(testDir, "custom");
+      mkdirSync(customPath, { recursive: true });
       setConfigPath(customPath);
       expect(getConfigCwd()).toBe(customPath);
     });

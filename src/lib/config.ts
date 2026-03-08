@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 import { parse, stringify } from "yaml";
 
 const GLOBAL_CONFIG_DIR = join(homedir(), ".cin");
@@ -237,8 +237,8 @@ export function resolveSshKey(
   cwd?: string
 ): string | null {
   const effectiveCwd = cwd ?? getConfigCwd();
-  // 1. Absolute path
-  if (keyNameOrPath.startsWith("/") && existsSync(keyNameOrPath)) {
+  // 1. Absolute path (works on both Unix and Windows)
+  if (isAbsolute(keyNameOrPath) && existsSync(keyNameOrPath)) {
     return keyNameOrPath;
   }
 
