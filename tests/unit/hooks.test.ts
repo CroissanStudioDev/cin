@@ -206,11 +206,9 @@ tasks:
       const markerFile = "test-marker-file.txt";
       writeFileSync(join(testDir, markerFile), "marker");
 
-      // Use ls/dir to check for the marker file instead of pwd
-      // This avoids path format issues between Windows shell and Node.js
-      const isWindows = process.platform === "win32";
-      const listCmd = isWindows ? `dir /b ${markerFile}` : `ls ${markerFile}`;
-      const result = runCommandSync(listCmd, { cwd: testDir });
+      // Use ls to check for the marker file instead of pwd
+      // runCommandSync uses sh -c which runs in Git Bash on Windows
+      const result = runCommandSync(`ls ${markerFile}`, { cwd: testDir });
 
       expect(result.success).toBe(true);
       expect(result.output).toContain(markerFile);
