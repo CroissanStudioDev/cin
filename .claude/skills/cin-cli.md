@@ -1,3 +1,22 @@
+---
+name: cin-cli
+description: Manage airgapped deployments with CIN CLI - delivering Docker Compose applications to isolated environments
+triggers:
+  - cin
+  - airgap
+  - airgapped
+  - offline deployment
+  - закрытый контур
+  - docker offline
+  - delta transfer
+  - package signing
+  - rollback deployment
+globs:
+  - ".cin/**/*"
+  - "**/cin.yaml"
+  - "**/cin.config.yaml"
+---
+
 # CIN CLI Skill
 
 Manage airgapped deployments with CIN CLI — a tool for delivering Docker Compose applications to isolated environments.
@@ -169,7 +188,7 @@ cin pack --sign
 # Transfer package to airgapped environment
 ```
 
-### Update Deployment (Laboratory → Airgapped)
+### Update Deployment (Laboratory -> Airgapped)
 
 ```bash
 # Laboratory
@@ -225,3 +244,13 @@ project/
 3. **Test rollback** — verify `cin rollback` works before production
 4. **Sanitize logs** — `cin logs collect` auto-removes secrets
 5. **Store signing keys securely** — private key stays with package creator
+
+## Installation
+
+```bash
+# Install from NPM
+npm install -g @croissan/cin
+
+# Or use npx
+npx @croissan/cin init
+```
