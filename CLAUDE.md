@@ -12,13 +12,13 @@ CIN CLI — инструмент для доставки кода в airgapped (
 
 ```bash
 # Development
-npm install                    # Install dependencies
-npm run dev                    # Run CLI: node bin/cin.js
-npm link                       # Link globally for local testing
+pnpm install                   # Install dependencies
+pnpm dev                       # Run CLI: tsx bin/cin.ts
+pnpm link --global             # Link globally for local testing
 
 # Linting & Formatting (Ultracite + Biome)
-npm run check                  # Check for issues
-npm run fix                    # Auto-fix issues
+pnpm check                     # Check for issues
+pnpm fix                       # Auto-fix issues
 
 # CLI commands (via cin or node bin/cin.js)
 cin init                       # Initialize project config
