@@ -8,6 +8,7 @@ import {
   globalConfigExists,
   projectConfigExists,
 } from "../../lib/config.js";
+import { EXIT_CODES } from "../../utils/exit-codes.js";
 import { formatPath, logger } from "../../utils/logger.js";
 
 interface AddOptions {
@@ -26,7 +27,7 @@ export const addCommand = new Command("add")
 
     if (!existsSync(resolvedPath)) {
       logger.error(`SSH key file not found: ${resolvedPath}`);
-      process.exit(1);
+      process.exit(EXIT_CODES.FILE_ERROR);
     }
 
     try {
@@ -34,7 +35,7 @@ export const addCommand = new Command("add")
         // Copy to project directory
         if (!projectConfigExists()) {
           logger.error("Project not initialized. Run 'cin init' first.");
-          process.exit(1);
+          process.exit(EXIT_CODES.CONFIG_ERROR);
         }
 
         const keyFileName = name.includes(".") ? name : `${name}.key`;
@@ -47,7 +48,7 @@ export const addCommand = new Command("add")
           logger.error(
             "Global config not found. Run 'cin init --global' first."
           );
-          process.exit(1);
+          process.exit(EXIT_CODES.CONFIG_ERROR);
         }
 
         // Store with ~ for portability
@@ -60,6 +61,6 @@ export const addCommand = new Command("add")
       }
     } catch (error) {
       logger.error((error as Error).message);
-      process.exit(1);
+      process.exit(EXIT_CODES.GENERAL_ERROR);
     }
   });

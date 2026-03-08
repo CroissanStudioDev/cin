@@ -2,6 +2,7 @@ import { existsSync, statSync } from "node:fs";
 import chalk from "chalk";
 import { Command } from "commander";
 import { applyDelta, createDelta, readDeltaManifest } from "../lib/delta.js";
+import { EXIT_CODES } from "../utils/exit-codes.js";
 import { logger, spinner } from "../utils/logger.js";
 
 function formatSize(bytes: number): string {
@@ -30,12 +31,12 @@ export const deltaCommand = new Command("delta")
     ) => {
       if (!existsSync(oldPackage)) {
         logger.error(`Old package not found: ${oldPackage}`);
-        process.exit(1);
+        process.exit(EXIT_CODES.FILE_ERROR);
       }
 
       if (!existsSync(newPackage)) {
         logger.error(`New package not found: ${newPackage}`);
-        process.exit(1);
+        process.exit(EXIT_CODES.FILE_ERROR);
       }
 
       const spin = spinner("Creating delta package...").start();
@@ -71,7 +72,7 @@ export const deltaCommand = new Command("delta")
         logger.info("Apply delta with: cin patch <old-package> <delta>");
       } catch (error) {
         spin.fail(`Failed to create delta: ${(error as Error).message}`);
-        process.exit(1);
+        process.exit(EXIT_CODES.GENERAL_ERROR);
       }
     }
   );
@@ -85,12 +86,12 @@ export const patchCommand = new Command("patch")
     async (oldPackage: string, delta: string, options: { output: string }) => {
       if (!existsSync(oldPackage)) {
         logger.error(`Old package not found: ${oldPackage}`);
-        process.exit(1);
+        process.exit(EXIT_CODES.FILE_ERROR);
       }
 
       if (!existsSync(delta)) {
         logger.error(`Delta package not found: ${delta}`);
-        process.exit(1);
+        process.exit(EXIT_CODES.FILE_ERROR);
       }
 
       // Show delta info
@@ -122,7 +123,7 @@ export const patchCommand = new Command("patch")
         logger.info("Verify with: cin verify <package>");
       } catch (error) {
         spin.fail(`Failed to apply delta: ${(error as Error).message}`);
-        process.exit(1);
+        process.exit(EXIT_CODES.GENERAL_ERROR);
       }
     }
   );

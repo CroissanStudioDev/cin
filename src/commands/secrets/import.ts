@@ -8,6 +8,7 @@ import {
   loadSecrets,
   saveSecrets,
 } from "../../lib/secrets.js";
+import { EXIT_CODES } from "../../utils/exit-codes.js";
 import { formatPath, logger } from "../../utils/logger.js";
 
 export const importCommand = new Command("import")
@@ -17,7 +18,7 @@ export const importCommand = new Command("import")
   .action((file: string, options: { merge?: boolean }) => {
     if (!existsSync(file)) {
       logger.error(`File not found: ${file}`);
-      process.exit(1);
+      process.exit(EXIT_CODES.FILE_ERROR);
     }
 
     const projectName = getProjectName();
@@ -40,7 +41,7 @@ export const importCommand = new Command("import")
       }
     } catch (error) {
       logger.error(`Failed to parse file: ${(error as Error).message}`);
-      process.exit(1);
+      process.exit(EXIT_CODES.VALIDATION_ERROR);
     }
 
     const importedCount = Object.keys(imported).length;

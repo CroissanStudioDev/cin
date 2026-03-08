@@ -5,6 +5,7 @@ import {
   projectConfigExists,
   resolveSshKey,
 } from "../../lib/config.js";
+import { EXIT_CODES } from "../../utils/exit-codes.js";
 import { formatRepo, logger } from "../../utils/logger.js";
 
 // Regex patterns for extracting repo name from URL (moved to top level for performance)
@@ -36,7 +37,7 @@ export const addCommand = new Command("add")
   .action((url: string, options: AddOptions) => {
     if (!projectConfigExists()) {
       logger.error("Project not initialized. Run 'cin init' first.");
-      process.exit(1);
+      process.exit(EXIT_CODES.CONFIG_ERROR);
     }
 
     const name = options.name ?? extractRepoName(url);
@@ -47,7 +48,7 @@ export const addCommand = new Command("add")
         logger.error(
           `SSH key '${options.key}' not found. Add it with 'cin key add'.`
         );
-        process.exit(1);
+        process.exit(EXIT_CODES.FILE_ERROR);
       }
     }
 
@@ -58,7 +59,7 @@ export const addCommand = new Command("add")
         submodulesKeys = JSON.parse(options.submodulesKeys);
       } catch {
         logger.error("Invalid JSON for --submodules-keys");
-        process.exit(1);
+        process.exit(EXIT_CODES.VALIDATION_ERROR);
       }
     }
 
@@ -88,7 +89,7 @@ export const addCommand = new Command("add")
       );
     } catch (error) {
       logger.error((error as Error).message);
-      process.exit(1);
+      process.exit(EXIT_CODES.GENERAL_ERROR);
     }
   });
 

@@ -16,6 +16,7 @@ import {
   verifyPackage as verifyPackageSignature,
 } from "../lib/signing.js";
 import { checksumFile } from "../utils/checksum.js";
+import { EXIT_CODES } from "../utils/exit-codes.js";
 import { logger, spinner } from "../utils/logger.js";
 
 interface DockerImage {
@@ -69,7 +70,7 @@ export const verifyCommand = new Command("verify")
   .action(async (packagePath: string, options: VerifyOptions) => {
     if (!existsSync(packagePath)) {
       logger.error(`Package not found: ${packagePath}`);
-      process.exit(1);
+      process.exit(EXIT_CODES.FILE_ERROR);
     }
 
     // Signature verification
@@ -85,7 +86,7 @@ export const verifyCommand = new Command("verify")
     } else if (options.signature) {
       logger.error("No signature file found (.sig)");
       logger.info("Sign the package with: cin sign <package>");
-      process.exit(1);
+      process.exit(EXIT_CODES.FILE_ERROR);
     }
 
     // Content verification
@@ -126,7 +127,7 @@ function verifySignature(
 
   if (!existsSync(keyPath)) {
     logger.error(`Public key not found: ${keyPath}`);
-    process.exit(1);
+    process.exit(EXIT_CODES.FILE_ERROR);
   }
 
   const result = verifyPackageSignature(packagePath, keyPath);
@@ -143,7 +144,7 @@ function verifySignature(
   } else {
     console.log(chalk.red("  ✗ Signature verification failed"));
     console.log(`    ${result.error}`);
-    process.exit(1);
+    process.exit(EXIT_CODES.VALIDATION_ERROR);
   }
 
   console.log();
@@ -272,14 +273,14 @@ async function verifyPackageContent(
   } catch (error) {
     spin.fail(`Failed to extract package: ${(error as Error).message}`);
     rmSync(tempDir, { recursive: true });
-    process.exit(1);
+    process.exit(EXIT_CODES.GENERAL_ERROR);
   }
 
   const extracted = readdirSync(tempDir);
   if (extracted.length !== 1) {
     logger.error("Invalid package structure");
     rmSync(tempDir, { recursive: true });
-    process.exit(1);
+    process.exit(EXIT_CODES.VALIDATION_ERROR);
   }
 
   const packageDir = join(tempDir, extracted[0]);
@@ -288,7 +289,7 @@ async function verifyPackageContent(
   if (!existsSync(manifestPath)) {
     logger.error("Package missing manifest.json");
     rmSync(tempDir, { recursive: true });
-    process.exit(1);
+    process.exit(EXIT_CODES.VALIDATION_ERROR);
   }
 
   const manifest: Manifest = JSON.parse(readFileSync(manifestPath, "utf-8"));
@@ -311,7 +312,7 @@ async function verifyPackageContent(
   rmSync(tempDir, { recursive: true });
 
   if (invalid > 0 || missing > 0) {
-    process.exit(1);
+    process.exit(EXIT_CODES.VALIDATION_ERROR);
   }
 }
 

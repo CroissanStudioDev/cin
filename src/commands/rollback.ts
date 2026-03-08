@@ -12,6 +12,7 @@ import { join, resolve } from "node:path";
 import chalk from "chalk";
 import { Command } from "commander";
 import { runHooks } from "../lib/hooks.js";
+import { EXIT_CODES } from "../utils/exit-codes.js";
 import { formatVersion, logger, spinner } from "../utils/logger.js";
 
 interface RollbackOptions {
@@ -51,7 +52,7 @@ export const rollbackCommand = new Command("rollback")
 
     if (!existsSync(targetDir)) {
       logger.error(`Target directory not found: ${targetDir}`);
-      process.exit(1);
+      process.exit(EXIT_CODES.FILE_ERROR);
     }
 
     if (options.list) {
@@ -144,14 +145,14 @@ async function performRollback(
 
   if (!existsSync(versionsDir)) {
     logger.error("No backup versions available");
-    process.exit(1);
+    process.exit(EXIT_CODES.FILE_ERROR);
   }
 
   const versions = getVersionsList(versionsDir);
 
   if (versions.length === 0) {
     logger.error("No backup versions available");
-    process.exit(1);
+    process.exit(EXIT_CODES.FILE_ERROR);
   }
 
   // Find version to rollback to
@@ -167,7 +168,7 @@ async function performRollback(
     if (!targetVersion) {
       logger.error(`Version not found: ${toVersion}`);
       logger.info("Use 'cin rollback --list' to see available versions");
-      process.exit(1);
+      process.exit(EXIT_CODES.FILE_ERROR);
     }
   } else {
     // Use most recent version
@@ -197,7 +198,7 @@ async function performRollback(
     });
     if (!preRollbackSuccess) {
       logger.error("Pre-rollback hooks failed, aborting");
-      process.exit(1);
+      process.exit(EXIT_CODES.GENERAL_ERROR);
     }
   }
 

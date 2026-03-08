@@ -9,6 +9,7 @@ import {
   signingKeysExist,
   signPackage,
 } from "../lib/signing.js";
+import { EXIT_CODES } from "../utils/exit-codes.js";
 import { logger, spinner } from "../utils/logger.js";
 
 interface SignOptions {
@@ -27,7 +28,7 @@ export const signCommand = new Command("sign")
   .action((packagePath: string, options: SignOptions) => {
     if (!existsSync(packagePath)) {
       logger.error(`Package not found: ${packagePath}`);
-      process.exit(1);
+      process.exit(EXIT_CODES.FILE_ERROR);
     }
 
     // Find private key
@@ -41,14 +42,14 @@ export const signCommand = new Command("sign")
         console.log(chalk.gray("  cin key generate --signing"));
         console.log();
         logger.info("Or specify a key with --key <path>");
-        process.exit(1);
+        process.exit(EXIT_CODES.CONFIG_ERROR);
       }
       privateKeyPath = defaultPath;
     }
 
     if (!existsSync(privateKeyPath)) {
       logger.error(`Private key not found: ${privateKeyPath}`);
-      process.exit(1);
+      process.exit(EXIT_CODES.FILE_ERROR);
     }
 
     const spin = spinner("Signing package...").start();
@@ -70,7 +71,7 @@ export const signCommand = new Command("sign")
       logger.info("Verify with: cin verify <package> --key <public-key>");
     } catch (error) {
       spin.fail(`Failed to sign package: ${(error as Error).message}`);
-      process.exit(1);
+      process.exit(EXIT_CODES.GENERAL_ERROR);
     }
   });
 
@@ -100,7 +101,7 @@ export const generateSigningKeysCommand = new Command("generate")
         console.log(`  Public:  ${publicKeyPath}`);
         console.log();
         logger.info("Use --force to overwrite");
-        process.exit(1);
+        process.exit(EXIT_CODES.CONFIG_ERROR);
       }
 
       const spin = spinner("Generating Ed25519 key pair...").start();
@@ -128,7 +129,7 @@ export const generateSigningKeysCommand = new Command("generate")
         logger.info("Distribute the public key (.pub) to verify packages");
       } catch (error) {
         spin.fail(`Failed to generate keys: ${(error as Error).message}`);
-        process.exit(1);
+        process.exit(EXIT_CODES.GENERAL_ERROR);
       }
     }
   );

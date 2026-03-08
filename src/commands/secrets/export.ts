@@ -7,6 +7,7 @@ import {
   loadSecrets,
   secretsExist,
 } from "../../lib/secrets.js";
+import { EXIT_CODES } from "../../utils/exit-codes.js";
 import { formatPath, logger } from "../../utils/logger.js";
 
 type ExportFormat = "env" | "yaml";
@@ -20,7 +21,7 @@ export const exportCommand = new Command("export")
 
     if (!secretsExist(projectName)) {
       logger.error(`No secrets configured for: ${projectName}`);
-      process.exit(1);
+      process.exit(EXIT_CODES.FILE_ERROR);
     }
 
     const secrets = loadSecrets(projectName);
@@ -28,7 +29,7 @@ export const exportCommand = new Command("export")
 
     if (secretCount === 0) {
       logger.error("No secrets to export");
-      process.exit(1);
+      process.exit(EXIT_CODES.VALIDATION_ERROR);
     }
 
     let content: string;

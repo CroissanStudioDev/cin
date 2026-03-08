@@ -7,6 +7,7 @@ import {
   detectRequiredSecrets,
   getProjectName,
 } from "../../lib/secrets.js";
+import { EXIT_CODES } from "../../utils/exit-codes.js";
 import { logger } from "../../utils/logger.js";
 
 export const checkCommand = new Command("check")
@@ -90,6 +91,6 @@ export const checkCommand = new Command("check")
       console.log(
         chalk.gray("\n  Run 'cin secrets setup' to configure missing secrets")
       );
-      process.exit(1);
+      process.exit(EXIT_CODES.VALIDATION_ERROR);
     }
   });

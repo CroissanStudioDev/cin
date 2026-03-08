@@ -1,6 +1,7 @@
 import chalk from "chalk";
 import { Command } from "commander";
 import { getRepositories, projectConfigExists } from "../../lib/config.js";
+import { EXIT_CODES } from "../../utils/exit-codes.js";
 import { logger } from "../../utils/logger.js";
 
 export const listCommand = new Command("list")
@@ -9,7 +10,7 @@ export const listCommand = new Command("list")
   .action(() => {
     if (!projectConfigExists()) {
       logger.error("Project not initialized. Run 'cin init' first.");
-      process.exit(1);
+      process.exit(EXIT_CODES.CONFIG_ERROR);
     }
 
     const repos = getRepositories();

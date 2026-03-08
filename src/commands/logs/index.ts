@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { Command } from "commander";
+import { EXIT_CODES } from "../../utils/exit-codes.js";
 import { collectCommand } from "./collect.js";
 
 export const logsCommand = new Command("logs")
@@ -15,7 +16,7 @@ export const logsCommand = new Command("logs")
     if (!existsSync(currentDir)) {
       console.error(`No deployment found at ${options.target}`);
       console.log("Use 'cin logs collect' to collect logs from a custom path");
-      process.exit(1);
+      process.exit(EXIT_CODES.FILE_ERROR);
     }
 
     const args = ["compose", "logs"];
@@ -33,7 +34,7 @@ export const logsCommand = new Command("logs")
 
     proc.on("error", (err) => {
       console.error(`Failed to run docker compose logs: ${err.message}`);
-      process.exit(1);
+      process.exit(EXIT_CODES.GENERAL_ERROR);
     });
 
     proc.on("close", (code) => {

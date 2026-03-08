@@ -12,8 +12,10 @@ import {
 import { join, resolve } from "node:path";
 import { Command } from "commander";
 import { extract as extractTar } from "tar";
+import { parse as parseYaml } from "yaml";
 import { runHooks } from "../lib/hooks.js";
 import { checksumFile } from "../utils/checksum.js";
+import { EXIT_CODES } from "../utils/exit-codes.js";
 import { formatPath, formatVersion, logger, spinner } from "../utils/logger.js";
 
 // Default rollback settings
@@ -61,7 +63,7 @@ export const deployCommand = new Command("deploy")
   .action(async (packagePath: string, options: DeployOptions) => {
     if (!existsSync(packagePath)) {
       logger.error(`Package not found: ${packagePath}`);
-      process.exit(1);
+      process.exit(EXIT_CODES.GENERAL_ERROR);
     }
 
     await deployPackage(packagePath, options);
@@ -84,7 +86,7 @@ async function deployPackage(
     spin.succeed("Package extracted");
   } catch (error) {
     spin.fail(`Failed to extract package: ${(error as Error).message}`);
-    process.exit(1);
+    process.exit(EXIT_CODES.GENERAL_ERROR);
   }
 
   // Find the extracted directory (should be single directory)
@@ -92,7 +94,7 @@ async function deployPackage(
   if (extracted.length !== 1) {
     logger.error("Invalid package structure");
     rmSync(tempDir, { recursive: true });
-    process.exit(1);
+    process.exit(EXIT_CODES.GENERAL_ERROR);
   }
 
   const packageDir = join(tempDir, extracted[0]);
@@ -101,7 +103,7 @@ async function deployPackage(
   if (!existsSync(manifestPath)) {
     logger.error("Package missing manifest.json");
     rmSync(tempDir, { recursive: true });
-    process.exit(1);
+    process.exit(EXIT_CODES.GENERAL_ERROR);
   }
 
   const manifest: Manifest = JSON.parse(readFileSync(manifestPath, "utf-8"));
@@ -115,7 +117,7 @@ async function deployPackage(
     const verified = await verifyChecksums(packageDir, manifest);
     if (!verified) {
       rmSync(tempDir, { recursive: true });
-      process.exit(1);
+      process.exit(EXIT_CODES.GENERAL_ERROR);
     }
   }
 
@@ -142,7 +144,7 @@ async function deployPackage(
   if (!preDeploySuccess) {
     logger.error("Pre-deploy hooks failed, aborting deployment");
     rmSync(tempDir, { recursive: true });
-    process.exit(1);
+    process.exit(EXIT_CODES.GENERAL_ERROR);
   }
 
   // Load Docker images
@@ -328,10 +330,8 @@ function loadRollbackConfig(targetDir: string): RollbackConfig {
   }
 
   try {
-    // Dynamic import for yaml since it's optional here
-    const { parse } = require("yaml");
     const content = readFileSync(configPath, "utf-8");
-    return { ...DEFAULT_ROLLBACK_CONFIG, ...parse(content) };
+    return { ...DEFAULT_ROLLBACK_CONFIG, ...parseYaml(content) };
   } catch {
     return { ...DEFAULT_ROLLBACK_CONFIG };
   }

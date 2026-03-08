@@ -27,6 +27,7 @@ import {
   signPackage,
 } from "../lib/signing.js";
 import { checksumFile } from "../utils/checksum.js";
+import { EXIT_CODES } from "../utils/exit-codes.js";
 import { formatRepo, logger, spinner } from "../utils/logger.js";
 
 // Regex for parsing submodule status (moved to top level for performance)
@@ -104,20 +105,20 @@ export const packCommand = new Command("pack")
   .action(async (options: PackOptions) => {
     if (!projectConfigExists()) {
       logger.error("Project not initialized. Run 'cin init' first.");
-      process.exit(1);
+      process.exit(EXIT_CODES.CONFIG_ERROR);
     }
 
     const config = readProjectConfig();
     if (!config) {
       logger.error("Project not initialized. Run 'cin init' first.");
-      process.exit(1);
+      process.exit(EXIT_CODES.CONFIG_ERROR);
     }
 
     const repos = getRepositories();
 
     if (repos.length === 0) {
       logger.error("No repositories configured. Add one with 'cin repo add'.");
-      process.exit(1);
+      process.exit(EXIT_CODES.CONFIG_ERROR);
     }
 
     const reposDir = join(process.cwd(), ".cin", "repos");
@@ -128,7 +129,7 @@ export const packCommand = new Command("pack")
         logger.error(
           `Repository '${repo.name}' not cloned. Run 'cin pull' first.`
         );
-        process.exit(1);
+        process.exit(EXIT_CODES.FILE_ERROR);
       }
     }
 
@@ -233,7 +234,7 @@ async function createPackage(
     }
   } catch (error) {
     spin.fail(`Failed to create archive: ${(error as Error).message}`);
-    process.exit(1);
+    process.exit(EXIT_CODES.GENERAL_ERROR);
   } finally {
     // Cleanup staging directory
     rmSync(stagingDir, { recursive: true });

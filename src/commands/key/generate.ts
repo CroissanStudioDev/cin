@@ -6,6 +6,7 @@ import {
   getSigningKeyPaths,
   saveKeyPair,
 } from "../../lib/signing.js";
+import { EXIT_CODES } from "../../utils/exit-codes.js";
 import { logger, spinner } from "../../utils/logger.js";
 
 interface GenerateOptions {
@@ -34,7 +35,7 @@ export const generateCommand = new Command("generate")
       console.log(`  Public:  ${publicKeyPath}`);
       console.log();
       logger.info("Use --force to overwrite");
-      process.exit(1);
+      process.exit(EXIT_CODES.VALIDATION_ERROR);
     }
 
     const spin = spinner("Generating Ed25519 key pair...").start();
@@ -62,6 +63,6 @@ export const generateCommand = new Command("generate")
       logger.info("Distribute the public key (.pub) to verify packages");
     } catch (error) {
       spin.fail(`Failed to generate keys: ${(error as Error).message}`);
-      process.exit(1);
+      process.exit(EXIT_CODES.GENERAL_ERROR);
     }
   });

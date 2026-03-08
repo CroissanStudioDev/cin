@@ -8,6 +8,7 @@ import {
   projectConfigExists,
   type Repository,
 } from "../lib/config.js";
+import { EXIT_CODES } from "../utils/exit-codes.js";
 import { formatRepo, logger, spinner } from "../utils/logger.js";
 
 type BuildResult = "built" | "skipped" | "failed";
@@ -32,7 +33,7 @@ export const buildCommand = new Command("build")
   .action(async (options: BuildOptions) => {
     if (!projectConfigExists()) {
       logger.error("Project not initialized. Run 'cin init' first.");
-      process.exit(1);
+      process.exit(EXIT_CODES.CONFIG_ERROR);
     }
 
     let repos = getRepositories();
@@ -46,7 +47,7 @@ export const buildCommand = new Command("build")
       repos = repos.filter((r) => r.name === options.repo);
       if (repos.length === 0) {
         logger.error(`Repository '${options.repo}' not found.`);
-        process.exit(1);
+        process.exit(EXIT_CODES.CONFIG_ERROR);
       }
     }
 

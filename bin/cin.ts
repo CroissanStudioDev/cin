@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { program } from "commander";
+import { CommanderError, program } from "commander";
 import { buildCommand } from "../src/commands/build.js";
 import { deltaCommand, patchCommand } from "../src/commands/delta.js";
 import { deployCommand } from "../src/commands/deploy.js";
@@ -19,6 +19,8 @@ import { tasksCommand } from "../src/commands/tasks/index.js";
 import { verifyCommand } from "../src/commands/verify.js";
 import { setConfigPath } from "../src/lib/config.js";
 import { runInteractiveMenu } from "../src/menu.js";
+import { EXIT_CODES } from "../src/utils/exit-codes.js";
+import { logger } from "../src/utils/logger.js";
 
 program
   .name("cin")
@@ -50,9 +52,46 @@ program.addCommand(tasksCommand);
 program.addCommand(runCommand);
 program.addCommand(statusCommand);
 
-// Show interactive menu if no arguments provided
-if (process.argv.length <= 2) {
-  runInteractiveMenu().catch(console.error);
-} else {
-  program.parse();
+// Enable custom error handling
+program.exitOverride();
+
+async function main(): Promise<void> {
+  // Show interactive menu if no arguments provided
+  if (process.argv.length <= 2) {
+    await runInteractiveMenu();
+    return;
+  }
+
+  await program.parseAsync();
 }
+
+main().catch((err) => {
+  // Handle Commander.js errors (--help, --version, invalid args)
+  if (err instanceof CommanderError) {
+    // Help and version are not errors
+    if (
+      err.code === "commander.helpDisplayed" ||
+      err.code === "commander.version"
+    ) {
+      process.exit(EXIT_CODES.SUCCESS);
+    }
+    // Invalid usage
+    if (
+      err.code === "commander.missingArgument" ||
+      err.code === "commander.missingMandatoryOptionValue"
+    ) {
+      process.exit(EXIT_CODES.MISUSE);
+    }
+    process.exit(err.exitCode);
+  }
+
+  // Handle application errors
+  logger.error(err.message || String(err));
+
+  // Debug mode: show stack trace
+  if (process.env.DEBUG) {
+    console.error(err.stack);
+  }
+
+  process.exit(EXIT_CODES.GENERAL_ERROR);
+});

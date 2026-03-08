@@ -1,5 +1,6 @@
 import { Command } from "commander";
 import { getTask, getTasks, runTask } from "../lib/hooks.js";
+import { EXIT_CODES } from "../utils/exit-codes.js";
 import { logger } from "../utils/logger.js";
 
 interface RunOptions {
@@ -72,7 +73,7 @@ export const runCommand = new Command("run")
       }
 
       console.log();
-      process.exit(1);
+      process.exit(EXIT_CODES.FILE_ERROR);
     }
 
     const envVars = parseEnvOptions(options.env);
@@ -85,6 +86,6 @@ export const runCommand = new Command("run")
     });
 
     if (!success) {
-      process.exit(1);
+      process.exit(EXIT_CODES.GENERAL_ERROR);
     }
   });

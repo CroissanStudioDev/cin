@@ -9,6 +9,7 @@ import {
   type Repository,
   resolveSshKey,
 } from "../lib/config.js";
+import { EXIT_CODES } from "../utils/exit-codes.js";
 import { formatRepo, logger, spinner } from "../utils/logger.js";
 
 // Regex for parsing submodule status line (moved to top level for performance)
@@ -33,7 +34,7 @@ export const pullCommand = new Command("pull")
   .action(async (options: PullOptions) => {
     if (!projectConfigExists()) {
       logger.error("Project not initialized. Run 'cin init' first.");
-      process.exit(1);
+      process.exit(EXIT_CODES.CONFIG_ERROR);
     }
 
     let repos = getRepositories();
@@ -47,7 +48,7 @@ export const pullCommand = new Command("pull")
       repos = repos.filter((r) => r.name === options.repo);
       if (repos.length === 0) {
         logger.error(`Repository '${options.repo}' not found.`);
-        process.exit(1);
+        process.exit(EXIT_CODES.CONFIG_ERROR);
       }
     }
 
