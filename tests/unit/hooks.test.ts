@@ -202,11 +202,18 @@ tasks:
     });
 
     it("should respect cwd option", () => {
-      const result = runCommandSync("pwd", { cwd: testDir });
+      // Create a marker file in testDir and verify we can see it
+      const markerFile = "test-marker-file.txt";
+      writeFileSync(join(testDir, markerFile), "marker");
+
+      // Use ls/dir to check for the marker file instead of pwd
+      // This avoids path format issues between Windows shell and Node.js
+      const isWindows = process.platform === "win32";
+      const listCmd = isWindows ? `dir /b ${markerFile}` : `ls ${markerFile}`;
+      const result = runCommandSync(listCmd, { cwd: testDir });
 
       expect(result.success).toBe(true);
-      // On macOS, /var is symlinked to /private/var
-      expect(result.output.trim()).toContain(testDir.replace("/var/", "/"));
+      expect(result.output).toContain(markerFile);
     });
 
     it("should pass environment variables", () => {
