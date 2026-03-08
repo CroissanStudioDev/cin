@@ -32,7 +32,7 @@
     "secrets"
   ],
   "author": "Croissan Studio",
-  "license": "MIT",
+  "license": "GPL-3.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/CroissanStudioDev/cin.git"
