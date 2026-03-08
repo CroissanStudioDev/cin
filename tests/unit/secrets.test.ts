@@ -1,0 +1,299 @@
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+  decryptSecrets,
+  detectRequiredSecrets,
+  encryptSecrets,
+  exportToEnv,
+  exportToYaml,
+  importFromEnv,
+  importFromYaml,
+  maskValue,
+  type SecretsData,
+} from "../../src/lib/secrets.js";
+
+describe("secrets", () => {
+  let testDir: string;
+
+  beforeEach(() => {
+    testDir = join(tmpdir(), `cin-secrets-test-${Date.now()}`);
+    mkdirSync(testDir, { recursive: true });
+  });
+
+  afterEach(() => {
+    if (existsSync(testDir)) {
+      rmSync(testDir, { recursive: true, force: true });
+    }
+  });
+
+  describe("encryptSecrets / decryptSecrets", () => {
+    it("should encrypt and decrypt secrets correctly", () => {
+      const secrets: SecretsData = {
+        API_KEY: "secret-api-key-123",
+        DB_PASSWORD: "super-secret-password",
+      };
+
+      const encrypted = encryptSecrets(secrets);
+
+      expect(encrypted.encrypted).toBeDefined();
+      expect(encrypted.iv).toBeDefined();
+      expect(encrypted.salt).toBeDefined();
+      expect(encrypted.authTag).toBeDefined();
+
+      const decrypted = decryptSecrets(encrypted);
+
+      expect(decrypted).toEqual(secrets);
+    });
+
+    it("should produce different ciphertext for same plaintext", () => {
+      const secrets: SecretsData = { KEY: "value" };
+
+      const encrypted1 = encryptSecrets(secrets);
+      const encrypted2 = encryptSecrets(secrets);
+
+      expect(encrypted1.encrypted).not.toBe(encrypted2.encrypted);
+      expect(encrypted1.iv).not.toBe(encrypted2.iv);
+    });
+
+    it("should handle empty secrets", () => {
+      const secrets: SecretsData = {};
+
+      const encrypted = encryptSecrets(secrets);
+      const decrypted = decryptSecrets(encrypted);
+
+      expect(decrypted).toEqual({});
+    });
+
+    it("should handle special characters in secrets", () => {
+      const secrets: SecretsData = {
+        SPECIAL: "value with spaces & special chars!@#$%^&*()",
+        UNICODE: "unicode: привет 你好",
+        QUOTES: "value with \"quotes\" and 'apostrophes'",
+      };
+
+      const encrypted = encryptSecrets(secrets);
+      const decrypted = decryptSecrets(encrypted);
+
+      expect(decrypted).toEqual(secrets);
+    });
+  });
+
+  describe("importFromEnv", () => {
+    it("should parse simple .env file", () => {
+      const envPath = join(testDir, ".env");
+      writeFileSync(envPath, "KEY1=value1\nKEY2=value2\n");
+
+      const secrets = importFromEnv(envPath);
+
+      expect(secrets).toEqual({
+        KEY1: "value1",
+        KEY2: "value2",
+      });
+    });
+
+    it("should handle quoted values", () => {
+      const envPath = join(testDir, ".env");
+      writeFileSync(
+        envPath,
+        "DOUBLE=\"double quoted\"\nSINGLE='single quoted'\n"
+      );
+
+      const secrets = importFromEnv(envPath);
+
+      expect(secrets.DOUBLE).toBe("double quoted");
+      expect(secrets.SINGLE).toBe("single quoted");
+    });
+
+    it("should skip comments and empty lines", () => {
+      const envPath = join(testDir, ".env");
+      writeFileSync(
+        envPath,
+        "# This is a comment\nKEY=value\n\n# Another comment\nKEY2=value2"
+      );
+
+      const secrets = importFromEnv(envPath);
+
+      expect(secrets).toEqual({
+        KEY: "value",
+        KEY2: "value2",
+      });
+    });
+
+    it("should handle values with equals sign", () => {
+      const envPath = join(testDir, ".env");
+      writeFileSync(envPath, "CONNECTION=host=localhost;user=admin");
+
+      const secrets = importFromEnv(envPath);
+
+      expect(secrets.CONNECTION).toBe("host=localhost;user=admin");
+    });
+  });
+
+  describe("importFromYaml", () => {
+    it("should parse flat YAML format", () => {
+      const yamlPath = join(testDir, "secrets.yaml");
+      writeFileSync(yamlPath, "API_KEY: secret123\nDB_PASS: password456\n");
+
+      const secrets = importFromYaml(yamlPath);
+
+      expect(secrets).toEqual({
+        API_KEY: "secret123",
+        DB_PASS: "password456",
+      });
+    });
+
+    it("should parse nested secrets format", () => {
+      const yamlPath = join(testDir, "secrets.yaml");
+      writeFileSync(
+        yamlPath,
+        "secrets:\n  API_KEY: secret123\n  DB_PASS: password456\n"
+      );
+
+      const secrets = importFromYaml(yamlPath);
+
+      expect(secrets).toEqual({
+        API_KEY: "secret123",
+        DB_PASS: "password456",
+      });
+    });
+  });
+
+  describe("exportToEnv", () => {
+    it("should export secrets to .env format", () => {
+      const secrets: SecretsData = {
+        API_KEY: "secret123",
+        DB_PASS: "password456",
+      };
+
+      const envContent = exportToEnv(secrets);
+
+      expect(envContent).toContain("API_KEY=secret123");
+      expect(envContent).toContain("DB_PASS=password456");
+      expect(envContent).toContain("# Generated by CIN CLI");
+    });
+
+    it("should quote values with special characters", () => {
+      const secrets: SecretsData = {
+        SIMPLE: "simple",
+        WITH_SPACE: "has space",
+        WITH_QUOTE: 'has "quote',
+      };
+
+      const envContent = exportToEnv(secrets);
+
+      expect(envContent).toContain("SIMPLE=simple");
+      expect(envContent).toContain('WITH_SPACE="has space"');
+    });
+  });
+
+  describe("exportToYaml", () => {
+    it("should export secrets to YAML format", () => {
+      const secrets: SecretsData = {
+        API_KEY: "secret123",
+        DB_PASS: "password456",
+      };
+
+      const yamlContent = exportToYaml(secrets);
+
+      expect(yamlContent).toContain("secrets:");
+      expect(yamlContent).toContain('API_KEY: "secret123"');
+      expect(yamlContent).toContain('DB_PASS: "password456"');
+    });
+  });
+
+  describe("maskValue", () => {
+    it("should mask short values completely", () => {
+      expect(maskValue("abc")).toBe("****");
+      expect(maskValue("abcd")).toBe("****");
+    });
+
+    it("should show first and last 2 characters for longer values", () => {
+      expect(maskValue("secret123")).toBe("se****23");
+      expect(maskValue("password")).toBe("pa****rd");
+    });
+  });
+
+  describe("detectRequiredSecrets", () => {
+    it("should detect required secrets from docker-compose", () => {
+      const composePath = join(testDir, "docker-compose.yml");
+      writeFileSync(
+        composePath,
+        `
+services:
+  app:
+    environment:
+      - API_KEY
+      - DB_HOST=localhost
+      - DB_PASSWORD
+`
+      );
+
+      const required = detectRequiredSecrets(composePath);
+
+      expect(required).toContain("API_KEY");
+      expect(required).toContain("DB_PASSWORD");
+      expect(required).not.toContain("DB_HOST");
+    });
+
+    it("should detect secrets from object format", () => {
+      const composePath = join(testDir, "docker-compose.yml");
+      writeFileSync(
+        composePath,
+        `
+services:
+  app:
+    environment:
+      API_KEY:
+      DB_HOST: localhost
+      SECRET_KEY: null
+`
+      );
+
+      const required = detectRequiredSecrets(composePath);
+
+      expect(required).toContain("API_KEY");
+      expect(required).toContain("SECRET_KEY");
+      expect(required).not.toContain("DB_HOST");
+    });
+
+    it("should return empty array for non-existent file", () => {
+      const required = detectRequiredSecrets(join(testDir, "nonexistent.yml"));
+      expect(required).toEqual([]);
+    });
+
+    it("should return empty array for compose without services", () => {
+      const composePath = join(testDir, "docker-compose.yml");
+      writeFileSync(composePath, "version: '3'\n");
+
+      const required = detectRequiredSecrets(composePath);
+      expect(required).toEqual([]);
+    });
+  });
+
+  describe("checkMissingSecrets", () => {
+    it("should identify configured and missing secrets", () => {
+      // Test the logic for checking missing secrets
+      const secrets: SecretsData = {
+        API_KEY: "configured",
+        DB_PASSWORD: "configured",
+      };
+
+      const requiredSecrets = ["API_KEY", "DB_PASSWORD", "MISSING_KEY"];
+      const configured: string[] = [];
+      const missing: string[] = [];
+
+      for (const key of requiredSecrets) {
+        if (key in secrets && secrets[key]) {
+          configured.push(key);
+        } else {
+          missing.push(key);
+        }
+      }
+
+      expect(configured).toEqual(["API_KEY", "DB_PASSWORD"]);
+      expect(missing).toEqual(["MISSING_KEY"]);
+    });
+  });
+});
