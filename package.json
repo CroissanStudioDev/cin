@@ -35,11 +35,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/croissan/cin.git"
+    "url": "git+https://github.com/CroissanStudioDev/cin.git"
   },
-  "homepage": "https://github.com/croissan/cin#readme",
+  "homepage": "https://github.com/CroissanStudioDev/cin#readme",
   "bugs": {
-    "url": "https://github.com/croissan/cin/issues"
+    "url": "https://github.com/CroissanStudioDev/cin/issues"
   },
   "engines": {
     "node": ">=20.0.0"

@@ -70,7 +70,7 @@ Install the CIN CLI skill for Claude Code to get intelligent assistance:
 
 ```bash
 # Install skill from repository
-claude skill install github:croissan/cin
+claude skill install github:CroissanStudioDev/cin
 ```
 
 The skill provides:
