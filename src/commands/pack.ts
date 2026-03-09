@@ -381,10 +381,48 @@ async function getRepoInfo(
   return info;
 }
 
-function collectDockerImages(
+async function getComposeImages(repoPath: string): Promise<string[]> {
+  try {
+    // Use docker compose config --images to get actual image names
+    const output = await runCommand(
+      "docker",
+      ["compose", "-f", "docker-compose.yml", "config", "--images"],
+      repoPath
+    );
+
+    return output
+      .trim()
+      .split("\n")
+      .filter((line) => line.length > 0);
+  } catch {
+    return [];
+  }
+}
+
+async function getBuiltImages(repoName: string): Promise<string[]> {
+  try {
+    // Fallback: find images by repository name pattern
+    const output = await runCommand("docker", [
+      "images",
+      "--format",
+      "{{.Repository}}:{{.Tag}}",
+      "--filter",
+      `reference=*${repoName}*`,
+    ]);
+
+    return output
+      .trim()
+      .split("\n")
+      .filter((line) => line.length > 0 && !line.includes("<none>"));
+  } catch {
+    return [];
+  }
+}
+
+async function collectDockerImages(
   repos: Repository[],
   reposDir: string
-): Set<string> {
+): Promise<Set<string>> {
   const images = new Set<string>();
 
   for (const repo of repos) {
@@ -395,21 +433,35 @@ function collectDockerImages(
       continue;
     }
 
-    const composeContent = readFileSync(composePath, "utf-8");
-    const compose = parseYaml(composeContent) as ComposeFile;
+    // Method 1: Get images from docker compose config
+    const composeImages = await getComposeImages(repoPath);
+    for (const image of composeImages) {
+      // Verify image exists in Docker
+      const exists = await imageExists(image);
+      if (exists) {
+        images.add(image);
+      }
+    }
 
-    if (compose.services) {
-      for (const [serviceName, service] of Object.entries(compose.services)) {
-        if (service.image) {
-          images.add(service.image);
-        } else if (service.build) {
-          images.add(`${repo.name}-${serviceName}:latest`);
-        }
+    // Method 2: Fallback to finding built images by pattern
+    if (composeImages.length === 0) {
+      const builtImages = await getBuiltImages(repo.name);
+      for (const image of builtImages) {
+        images.add(image);
       }
     }
   }
 
   return images;
+}
+
+async function imageExists(image: string): Promise<boolean> {
+  try {
+    await runCommand("docker", ["inspect", "--type=image", image]);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function getImageSize(image: string): Promise<number> {
@@ -434,7 +486,7 @@ async function exportDockerImages(
 ): Promise<void> {
   const spin = spinner("Collecting Docker images...").start();
 
-  const images = collectDockerImages(repos, reposDir);
+  const images = await collectDockerImages(repos, reposDir);
 
   if (images.size === 0) {
     spin.warn("No Docker images found");
@@ -597,9 +649,16 @@ function getAllFiles(dir: string, files: string[] = []): string[] {
   return files;
 }
 
-function runCommand(cmd: string, args: string[]): Promise<string> {
+function runCommand(
+  cmd: string,
+  args: string[],
+  cwd?: string
+): Promise<string> {
   return new Promise((resolve, reject) => {
-    const proc = spawn(cmd, args, { stdio: ["ignore", "pipe", "pipe"] });
+    const proc = spawn(cmd, args, {
+      cwd,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
 
     let stdout = "";
     let stderr = "";
