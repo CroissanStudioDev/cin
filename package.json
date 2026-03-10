@@ -1,6 +1,6 @@
 {
   "name": "@croissanstudiodev/cin",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "CLI for delivering code to airgapped environments",
   "type": "module",
   "bin": {
