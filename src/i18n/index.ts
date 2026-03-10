@@ -32,6 +32,7 @@ export interface Translations {
     subtitle: string;
     project: string;
     repos: string;
+    version: string;
     notInitialized: string;
     whatToDo: string;
     pressEnter: string;
@@ -125,6 +126,7 @@ const en: Translations = {
     subtitle: "Airgapped Deployment Tool",
     project: "Project",
     repos: "Repos",
+    version: "Version",
     notInitialized: "not initialized",
     whatToDo: "What would you like to do?",
     pressEnter: "Press Enter to continue...",
@@ -238,6 +240,7 @@ const ru: Translations = {
     subtitle: "Доставка в закрытый контур",
     project: "Проект",
     repos: "Репозитории",
+    version: "Версия",
     notInitialized: "не инициализирован",
     whatToDo: "Что вы хотите сделать?",
     pressEnter: "Нажмите Enter для продолжения...",

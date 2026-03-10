@@ -30,6 +30,110 @@ function getRepoCount(): number {
   return getRepositories().length;
 }
 
+interface VersionInfo {
+  current: string | null;
+  hasUpdate: boolean;
+  latest: string | null;
+}
+
+let cachedVersionInfo: VersionInfo | null = null;
+let versionCheckPromise: Promise<VersionInfo> | null = null;
+
+async function checkVersionStatus(): Promise<VersionInfo> {
+  const { existsSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const { simpleGit } = await import("simple-git");
+  const { resolveSshKey } = await import("./lib/config.js");
+
+  const defaultInfo: VersionInfo = {
+    current: null,
+    latest: null,
+    hasUpdate: false,
+  };
+
+  if (!projectConfigExists()) {
+    return defaultInfo;
+  }
+
+  const repos = getRepositories();
+  if (repos.length === 0) {
+    return defaultInfo;
+  }
+
+  const repo = repos[0];
+  const repoPath = join(process.cwd(), ".cin", "repos", repo.name);
+
+  if (!existsSync(repoPath)) {
+    return defaultInfo;
+  }
+
+  try {
+    const git = simpleGit(repoPath);
+
+    const sshKey = repo.ssh_key ? resolveSshKey(repo.ssh_key) : null;
+    if (sshKey) {
+      git.env(
+        "GIT_SSH_COMMAND",
+        `ssh -i ${sshKey} -o StrictHostKeyChecking=no`
+      );
+    }
+
+    // Get current HEAD commit
+    const currentCommit = await git.revparse(["HEAD"]);
+
+    // Get tag at HEAD (if any)
+    const currentTags = await git.tag(["--points-at", "HEAD"]);
+    const currentTag = currentTags.trim().split("\n")[0] || null;
+
+    // Get latest tag
+    const allTags = await git.tags(["--sort=-version:refname"]);
+    const latestTag = allTags.all[0] || null;
+
+    if (!latestTag) {
+      return { current: currentTag, latest: null, hasUpdate: false };
+    }
+
+    // Dereference annotated tag to commit SHA
+    const latestCommit = await git.revparse([`${latestTag}^{}`]);
+    const hasUpdate = currentCommit.trim() !== latestCommit.trim();
+
+    return {
+      current: currentTag ?? currentCommit.trim().substring(0, 7),
+      latest: latestTag,
+      hasUpdate,
+    };
+  } catch {
+    return defaultInfo;
+  }
+}
+
+function startVersionCheck(): void {
+  if (!versionCheckPromise) {
+    versionCheckPromise = checkVersionStatus().then((info) => {
+      cachedVersionInfo = info;
+      return info;
+    });
+  }
+}
+
+function getVersionDisplay(): string {
+  if (!cachedVersionInfo) {
+    return "";
+  }
+
+  const { current, latest, hasUpdate } = cachedVersionInfo;
+
+  if (!current) {
+    return "";
+  }
+
+  if (hasUpdate && latest) {
+    return `${chalk.cyan(current)} ${chalk.yellow("→")} ${chalk.green(latest)}`;
+  }
+
+  return chalk.green(current);
+}
+
 // biome-ignore lint/suspicious/noControlCharactersInRegex: ANSI escape codes
 const ANSI_REGEX = /\x1b\[[0-9;]*m/g;
 
@@ -57,6 +161,12 @@ function printHeader(): void {
   console.log();
   console.log(chalk.gray(`  ${i.project}: ${getProjectStatus()}`));
   console.log(chalk.gray(`  ${i.repos}:   ${getRepoCount()}`));
+
+  const versionDisplay = getVersionDisplay();
+  if (versionDisplay) {
+    console.log(chalk.gray(`  ${i.version ?? "Version"}:  ${versionDisplay}`));
+  }
+
   console.log();
 }
 
@@ -533,6 +643,12 @@ async function handleLanguage(): Promise<void> {
 }
 
 export async function runInteractiveMenu(): Promise<void> {
+  // Check version on first run (await to show in header)
+  startVersionCheck();
+  if (versionCheckPromise) {
+    await versionCheckPromise;
+  }
+
   while (true) {
     const m = t().menu;
     const e = t().errors;
