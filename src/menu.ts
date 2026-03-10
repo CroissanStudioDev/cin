@@ -8,6 +8,7 @@ import {
   readProjectConfig,
   setLanguage,
 } from "./lib/config.js";
+import { VERSION } from "./utils/version.js";
 
 interface MenuChoice {
   disabled?: boolean | string;
@@ -161,9 +162,13 @@ function printHeader(): void {
   console.clear();
   console.log();
   console.log(chalk.bold.cyan("  ╭─────────────────────────────────────╮"));
+  const title = `${i.title} v${VERSION}`;
+  const padding = Math.floor((35 - title.length) / 2);
   console.log(
     chalk.bold.cyan("  │") +
-      chalk.bold(`           ${i.title}           `) +
+      chalk.bold(
+        `${" ".repeat(padding)}${title}${" ".repeat(35 - title.length - padding)}`
+      ) +
       chalk.bold.cyan("│")
   );
   console.log(

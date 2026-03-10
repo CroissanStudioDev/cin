@@ -122,7 +122,7 @@ export interface Translations {
 
 const en: Translations = {
   menu: {
-    title: "CIN CLI v0.1.0",
+    title: "CIN CLI",
     subtitle: "Airgapped Deployment Tool",
     project: "Project",
     repos: "Repos",
@@ -236,7 +236,7 @@ const en: Translations = {
 
 const ru: Translations = {
   menu: {
-    title: "CIN CLI v0.1.0",
+    title: "CIN CLI",
     subtitle: "Доставка в закрытый контур",
     project: "Проект",
     repos: "Репозитории",

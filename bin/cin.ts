@@ -9,6 +9,7 @@ import { keyCommand } from "../src/commands/key/index.js";
 import { logsCommand } from "../src/commands/logs/index.js";
 import { packCommand } from "../src/commands/pack.js";
 import { pullCommand } from "../src/commands/pull.js";
+import { releaseCommand } from "../src/commands/release/index.js";
 import { repoCommand } from "../src/commands/repo/index.js";
 import { rollbackCommand } from "../src/commands/rollback.js";
 import { runCommand } from "../src/commands/run.js";
@@ -16,16 +17,21 @@ import { secretsCommand } from "../src/commands/secrets/index.js";
 import { signCommand } from "../src/commands/sign.js";
 import { statusCommand } from "../src/commands/status.js";
 import { tasksCommand } from "../src/commands/tasks/index.js";
+import {
+  updateCommand,
+  updateRollbackCommand,
+} from "../src/commands/update.js";
 import { verifyCommand } from "../src/commands/verify.js";
 import { setConfigPath } from "../src/lib/config.js";
 import { runInteractiveMenu } from "../src/menu.js";
 import { EXIT_CODES } from "../src/utils/exit-codes.js";
 import { logger } from "../src/utils/logger.js";
+import { VERSION } from "../src/utils/version.js";
 
 program
   .name("cin")
   .description("CLI for delivering code to airgapped environments")
-  .version("0.1.0")
+  .version(VERSION)
   .option("-c, --config <path>", "Path to project config directory")
   .hook("preAction", (thisCommand) => {
     const opts = thisCommand.opts();
@@ -41,6 +47,12 @@ program.addCommand(secretsCommand);
 program.addCommand(pullCommand);
 program.addCommand(buildCommand);
 program.addCommand(packCommand);
+program.addCommand(releaseCommand);
+
+// Update command with rollback subcommand
+updateCommand.addCommand(updateRollbackCommand);
+program.addCommand(updateCommand);
+
 program.addCommand(deltaCommand);
 program.addCommand(patchCommand);
 program.addCommand(signCommand);

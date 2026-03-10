@@ -29,6 +29,7 @@ import {
 import { checksumFile } from "../utils/checksum.js";
 import { EXIT_CODES } from "../utils/exit-codes.js";
 import { formatRepo, logger, spinner } from "../utils/logger.js";
+import { VERSION } from "../utils/version.js";
 
 // Regex for parsing submodule status (moved to top level for performance)
 const SUBMODULE_STATUS_PATTERN = /^[\s-+]?([a-f0-9]+)\s+(\S+)/;
@@ -161,7 +162,7 @@ async function createPackage(
     package: {
       name: packageName,
       created: new Date().toISOString(),
-      created_by: "cin-cli@0.1.0",
+      created_by: `cin-cli@${VERSION}`,
     },
     project: config.project,
     vendor: config.vendor,
