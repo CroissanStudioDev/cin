@@ -5,9 +5,9 @@ CLI for delivering code to airgapped environments. Package Docker Compose applic
 ## Installation
 
 ```bash
-pnpm add -g @croissan/cin
+pnpm add -g @croissanstudiodev/cin
 # or
-npm install -g @croissan/cin
+npm install -g @croissanstudiodev/cin
 ```
 
 ## Quick Start
