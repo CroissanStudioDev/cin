@@ -23,11 +23,25 @@ function getProjectStatus(): string {
   return chalk.green(config?.project?.name ?? "unnamed");
 }
 
-function getRepoCount(): number {
+function getRepoCountDisplay(): string {
   if (!projectConfigExists()) {
-    return 0;
+    return "0";
   }
-  return getRepositories().length;
+  const repos = getRepositories();
+  const repoCount = repos.length;
+
+  // Count submodules across all repos
+  let submoduleCount = 0;
+  for (const repo of repos) {
+    if (repo.submodules && Array.isArray(repo.submodules)) {
+      submoduleCount += repo.submodules.length;
+    }
+  }
+
+  if (submoduleCount > 0) {
+    return `${repoCount} (${submoduleCount} submodules)`;
+  }
+  return String(repoCount);
 }
 
 interface VersionInfo {
@@ -160,7 +174,7 @@ function printHeader(): void {
   console.log(chalk.bold.cyan("  ╰─────────────────────────────────────╯"));
   console.log();
   console.log(chalk.gray(`  ${i.project}: ${getProjectStatus()}`));
-  console.log(chalk.gray(`  ${i.repos}:   ${getRepoCount()}`));
+  console.log(chalk.gray(`  ${i.repos}:   ${getRepoCountDisplay()}`));
 
   const versionDisplay = getVersionDisplay();
   if (versionDisplay) {
@@ -177,7 +191,7 @@ function formatMenuItem(icon: string, label: string, desc: string): string {
 function getMainMenuChoices(): (MenuChoice | inquirer.Separator)[] {
   const hasProject = projectConfigExists();
   const hasGlobal = globalConfigExists();
-  const hasRepos = getRepoCount() > 0;
+  const hasRepos = getRepositories().length > 0;
   const i = t().menu;
 
   return [
