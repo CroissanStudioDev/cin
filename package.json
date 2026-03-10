@@ -1,5 +1,5 @@
 {
-  "name": "@croissan/cin",
+  "name": "@croissanstudiodev/cin",
   "version": "0.1.0",
   "description": "CLI for delivering code to airgapped environments",
   "type": "module",
